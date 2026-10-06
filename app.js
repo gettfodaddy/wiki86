@@ -36,8 +36,6 @@ document.querySelector('#sidebar-toggle').addEventListener('click', () => {
   if (isMobileLayout()) { const open = sidebar.classList.toggle('open'); scrim.classList.toggle('show', open); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', String(open)); }
 });
 scrim.addEventListener('click', closeMobileSidebar);
-let forceNewManual = false;
-document.querySelector('#sidebar-add').addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); forceNewManual = true; navigate('/admin'); if (adminAuthenticated) { resetEditor(); forceNewManual = false; } });
 function normalizePath(path) { return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path; }
 function currentRoute() {
   if (location.protocol === 'file:') { const hash = location.hash.slice(1); if (hash === 'selfsteal' || hash === 'manual/selfsteal') return '/manual/selfsteal'; if (hash === 'admin') return '/admin'; if (hash.startsWith('manual/')) return `/${hash}`; return '/'; }
@@ -372,8 +370,7 @@ async function activateAdmin() {
   await loadAdminManuals();
   await migrateBrowserDrafts();
   renderPicker();
-  if (forceNewManual) { resetEditor(); forceNewManual = false; }
-  else if (currentManual?.id) hydrateEditor(manuals.find((manual) => manual.id === currentManual.id) || manuals[0]);
+  if (currentManual?.id) hydrateEditor(manuals.find((manual) => manual.id === currentManual.id) || manuals[0]);
   else if (manuals.length) hydrateEditor(manuals[0]);
   else resetEditor();
 }
