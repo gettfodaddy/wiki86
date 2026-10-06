@@ -24,7 +24,7 @@ const defaultNavigation = [
 ];
 const iconNames = new Set(['book','network','cloud','shield','globe','terminal','spark','heading','text','list','code','alert','image','panel']);
 let categories = new Set(defaultNavigation.map((section) => section.id));
-const blockTypes = new Set(['heading', 'text', 'step', 'code', 'note', 'image', 'divider']);
+const blockTypes = new Set(['heading', 'text', 'step', 'code', 'note', 'data', 'image', 'divider']);
 const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.svg':'image/svg+xml', '.json':'application/json; charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp' };
 
 if (!adminPassword) throw new Error('Set WIKI86_ADMIN_PASSWORD before starting in production.');
@@ -111,9 +111,20 @@ function safeManual(input, previous = {}) {
     for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant']) {
       if (raw[key] !== undefined) block[key] = String(raw[key]).slice(0, key === 'code' || key === 'text' ? 30000 : 500);
     }
+    if (block.type === 'data') {
+      if (!Array.isArray(raw.fields) || raw.fields.length < 1 || raw.fields.length > 20) throw new Error('A data form must contain between 1 and 20 fields.');
+      const seenKeys = new Set();
+      block.fields = raw.fields.map((field) => {
+        const key = String(field?.key || '').trim();
+        if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(key) || seenKeys.has(key.toLowerCase())) throw new Error('Data field keys must be unique and use Latin letters, numbers and underscores.');
+        seenKeys.add(key.toLowerCase());
+        return { key, label: String(field.label || key).trim().slice(0, 80), placeholder: String(field.placeholder || '').slice(0, 160), help: String(field.help || '').slice(0, 240) };
+      });
+    }
     if (block.type === 'image' && block.src && !/^https:\/\//i.test(block.src)) throw new Error('Images must use HTTPS URLs.');
     return block;
   });
+  if (blocks.filter((block) => block.type === 'data').length > 1) throw new Error('A manual can contain only one data form.');
   return { id: previous.id || String(input.id || randomUUID()), title, category, slug, path: `/manual/${category}/${slug}`, description, status, blocks, createdAt: previous.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
 }
 

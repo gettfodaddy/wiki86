@@ -20,7 +20,7 @@ let navigationGroups = structuredClone(defaultGroups);
 let navigationSections = structuredClone(defaultSections);
 let categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
 const openSections = new Set();
-const blockNames = { heading: 'Заголовок', text: 'Текст', step: 'Шаг инструкции', code: 'Команда / код', note: 'Примечание', image: 'Изображение', divider: 'Разделитель' };
+const blockNames = { heading: 'Заголовок', text: 'Текст', step: 'Шаг инструкции', code: 'Команда / код', note: 'Примечание', data: 'Форма «Твои данные»', image: 'Изображение', divider: 'Разделитель' };
 const routeViews = { '/': document.querySelector('#welcome-view'), '/admin': document.querySelector('#admin-view') };
 let manuals = [];
 let currentManual = null;
@@ -100,17 +100,54 @@ function updateDataPreview(root = document) {
   root.querySelectorAll('[data-value]').forEach((field) => { field.value = typeof storedUserData[field.dataset.value] === 'string' ? storedUserData[field.dataset.value] : ''; });
   root.querySelectorAll('[data-preview]').forEach((target) => { const key = target.dataset.preview; target.textContent = storedUserData[key]?.trim() || (key === 'nodeDomain' ? 'node.example.com' : key === 'email' ? 'mail@example.com' : '—'); });
 }
+const defaultDataFields = () => [
+  { key: 'NODE_DOMAIN', label: 'Домен ноды', placeholder: 'node.example.com', help: 'A-запись домена должна вести на IP ноды.' },
+  { key: 'SITE_NAME', label: 'Название сайта', placeholder: 'Например, заметки на полях', help: 'Заголовок сайта, которым прикрывается Reality.' },
+  { key: 'LE_EMAIL', label: 'Почта для сертификата', placeholder: 'mail@example.com', help: 'Адрес для уведомлений Let’s Encrypt.' }
+];
+function getVariableValue(key) {
+  const legacyKeys = { NODE_DOMAIN: 'nodeDomain', SITE_NAME: 'siteName', LE_EMAIL: 'email' };
+  return storedUserData[key] ?? storedUserData[legacyKeys[key]] ?? storedUserData[key.toLowerCase()] ?? '';
+}
+function interpolate(value) {
+  return String(value || '').replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/g, (token, key) => {
+    const resolved = String(getVariableValue(key) ?? '').trim();
+    return resolved || token;
+  });
+}
+function templateText(tag, className, source) { const node = make(tag, className, interpolate(source)); node.dataset.templateSource = source || ''; return node; }
+function refreshVariableTexts(root = document) {
+  root.querySelectorAll('[data-template-source]').forEach((node) => { node.textContent = interpolate(node.dataset.templateSource); });
+}
+function createDataForm(fields, { editor = false } = {}) {
+  const details = make('details', `user-data${editor ? ' editor-data-form' : ''}`); details.open = true;
+  const summary = make('summary'); summary.append(make('span', 'data-summary-icon', '✦'), make('span', 'data-summary-title', 'Твои данные'), make('span', 'data-summary-help', 'заполни один раз — значения подставятся по мануалу'));
+  const content = make('div', 'data-content'); content.append(make('p', 'data-intro', editor ? 'Добавь поля и указывай их в тексте как {{ИМЯ_ПОЛЯ}}. Например: {{NODE_DOMAIN}}.' : 'Укажи значения для этой инструкции. Данные сохраняются только в этом браузере и не отправляются на сервер.'));
+  const grid = make('div', 'data-grid');
+  fields.forEach((field) => {
+    const label = make('label', 'field'); const span = make('span'); span.append(document.createTextNode(field.label || field.key || 'Поле'), make('code', '', field.key || 'FIELD'));
+    if (editor) { label.append(span, make('div', 'data-editor-value', getVariableValue(field.key) || field.placeholder || 'Значение появится здесь')); }
+    else { const input = document.createElement('input'); input.dataset.value = field.key; input.placeholder = field.placeholder || ''; input.value = getVariableValue(field.key); input.autocomplete = 'off'; label.append(span, input); if (field.help) label.append(make('small', '', field.help)); }
+    grid.append(label);
+  });
+  content.append(grid);
+  if (!editor) { const actions = make('div', 'data-actions'); const clear = make('button', 'text-button', 'Очистить поля'); clear.type = 'button'; clear.dataset.clearData = ''; actions.append(clear, make('span', '', 'сохраняется локально в твоём браузере'), make('span', 'save-indicator', 'Сохранено')); content.append(actions); }
+  details.append(summary, content); return details;
+}
 document.addEventListener('input', (event) => {
   const field = event.target.closest('[data-value]'); if (!field) return;
   storedUserData[field.dataset.value] = field.value; localStorage.setItem(userDataKey, JSON.stringify(storedUserData));
   const panel = field.closest('.user-data'); panel?.querySelector('.save-indicator')?.classList.add('visible');
   setTimeout(() => panel?.querySelector('.save-indicator')?.classList.remove('visible'), 1200);
-  updateDataPreview(field.closest('#published-manual-content') || document);
+  const root = field.closest('#published-manual-content') || document;
+  updateDataPreview(root);
+  refreshVariableTexts(root);
+  root.querySelectorAll('.editor-data-form .field').forEach((label) => { const key = label.querySelector('code')?.textContent; const preview = label.querySelector('.data-editor-value'); if (preview && key) preview.textContent = getVariableValue(key) || 'Значение появится здесь'; });
 });
 document.addEventListener('click', (event) => {
   if (!event.target.closest('[data-clear-data]')) return;
   localStorage.removeItem(userDataKey); storedUserData = {};
-  document.querySelectorAll('[data-value]').forEach((field) => { field.value = ''; }); updateDataPreview();
+  document.querySelectorAll('[data-value]').forEach((field) => { field.value = ''; }); updateDataPreview(); refreshVariableTexts();
 });
 
 function iconElement(name, className = 'icon') {
@@ -166,15 +203,17 @@ function renderPublishedManual(manual) {
   hero.append(make('p', 'eyebrow', `${categories[manual.category].toLocaleUpperCase('ru')} · ИНСТРУКЦИЯ`), make('h1', '', manual.title));
   if (manual.description) hero.append(make('p', 'published-description', manual.description));
   root.append(hero);
-  if (manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); root.append(dataPanel); updateDataPreview(root); }
+  const dataBlock = manual.blocks.find((block) => block.type === 'data');
+  if (!dataBlock && manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); root.append(dataPanel); updateDataPreview(root); }
   const content = make('div', 'published-blocks');
   manual.blocks.forEach((block, index) => {
     let element;
-    if (block.type === 'heading') { element = make(block.level === '3' ? 'h3' : 'h2', 'published-heading', block.title || 'Заголовок'); }
-    else if (block.type === 'text') { element = make('p', 'published-text', block.text || ''); }
-    else if (block.type === 'step') { element = make('section', 'published-step'); element.append(make('span', 'step-number', String(index + 1).padStart(2, '0')), make('div', '', '')); element.lastChild.append(make('h2', '', block.title || `Шаг ${index + 1}`), make('p', '', block.text || '')); }
-    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(block.code || ''); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(make('code', '', block.code || '')); element.append(top, pre); }
-    else if (block.type === 'note') { element = make('aside', `published-note note-${block.variant || 'warning'}`); element.append(make('span', 'note-mark', block.variant === 'success' ? '✓' : block.variant === 'info' ? 'i' : '!'), make('div', 'note-content', '')); element.lastChild.append(make('strong', '', block.title || 'Примечание'), make('p', '', block.text || '')); }
+    if (block.type === 'data') { element = createDataForm(block.fields || defaultDataFields()); }
+    else if (block.type === 'heading') { element = templateText(block.level === '3' ? 'h3' : 'h2', 'published-heading', block.title || 'Заголовок'); }
+    else if (block.type === 'text') { element = templateText('p', 'published-text', block.text || ''); }
+    else if (block.type === 'step') { element = make('section', 'published-step'); element.append(make('span', 'step-number', String(index + 1).padStart(2, '0')), make('div', '', '')); element.lastChild.append(templateText('h2', '', block.title || `Шаг ${index + 1}`), templateText('p', '', block.text || '')); }
+    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '')); element.append(top, pre); }
+    else if (block.type === 'note') { element = make('aside', `published-note note-${block.variant || 'warning'}`); element.append(make('span', 'note-mark', block.variant === 'success' ? '✓' : block.variant === 'info' ? 'i' : '!'), make('div', 'note-content', '')); element.lastChild.append(templateText('strong', '', block.title || 'Примечание'), templateText('p', '', block.text || '')); }
     else if (block.type === 'image') { element = make('figure', 'published-image'); const src = /^https:\/\//i.test(block.src || '') && !/example\.com/i.test(block.src) ? block.src : ''; if (src) { const img = document.createElement('img'); img.src = src; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); } else element.append(make('div', 'image-placeholder', 'Добавьте HTTPS-ссылку на изображение в редакторе')); if (block.alt) element.append(make('figcaption', '', block.alt)); }
     else element = make('hr', 'published-divider');
     element.dataset.blockId = block.id; content.append(element);
@@ -207,6 +246,7 @@ function defaultBlock(type) {
   if (type === 'step') return { ...common, title: 'Новый шаг', text: 'Опишите действие и ожидаемый результат.' };
   if (type === 'code') return { ...common, language: 'bash', code: 'команда' };
   if (type === 'note') return { ...common, title: 'Важно', text: 'Добавьте важное примечание.', variant: 'warning' };
+  if (type === 'data') return { ...common, fields: defaultDataFields() };
   if (type === 'image') return { ...common, src: '', alt: 'Описание изображения' };
   return common;
 }
@@ -217,15 +257,16 @@ function refreshEditorCanvas() {
   const head = make('header', 'canvas-title-block'); head.append(make('div', '', '')); head.firstChild.append(make('small', '', 'ЗАГОЛОВОК МАНУАЛА'), make('h2', '', data.title || 'Название инструкции'), make('p', '', data.description || 'Краткое описание инструкции'));
   editorCanvas.append(meta, head);
   data.blocks.forEach((block, index) => {
-    const card = make('article', `editor-block editor-block-${block.type}${selectedBlockId === block.id ? ' selected' : ''}`); card.dataset.blockId = block.id;
+    const card = make('article', `editor-block editor-block-${block.type}${block.type === 'note' ? ` note-${block.variant || 'warning'}` : ''}${selectedBlockId === block.id ? ' selected' : ''}`); card.dataset.blockId = block.id;
     const tools = make('div', 'editor-block-tools'); tools.append(make('span', 'editor-block-label', `${String(index + 1).padStart(2, '0')} · ${blockNames[block.type]}`));
     [['up','<path d="m6 14 6-6 6 6"/>'],['down','<path d="m6 10 6 6 6-6"/>'],['edit','<path d="m14 5 5 5M4 20l4.2-.9L19 8.3 15.7 5 4.9 15.8 4 20Z"/>'],['delete','<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>']].forEach(([action, path]) => { const button = make('button', 'block-action', ''); button.type = 'button'; button.dataset.blockAction = action; button.title = ({up:'Переместить выше',down:'Переместить ниже',edit:'Редактировать',delete:'Удалить'})[action]; button.setAttribute('aria-label', button.title); button.innerHTML = `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24">${path}</svg>`; button.disabled = (action === 'up' && index === 0) || (action === 'down' && index === data.blocks.length - 1); tools.append(button); });
     card.append(tools);
-    if (block.type === 'heading') card.append(make(block.level === '3' ? 'h3' : 'h2', '', block.title || 'Заголовок'));
-    if (block.type === 'text') card.append(make('p', '', block.text || 'Текстовый блок'));
-    if (block.type === 'step') { card.append(make('h3', '', block.title || `Шаг ${index + 1}`), make('p', '', block.text || 'Описание шага')); }
-    if (block.type === 'code') { card.append(make('small', 'code-language', block.language || 'TEXT')); const pre = make('pre'); pre.append(make('code', '', block.code || '')); card.append(pre); }
-    if (block.type === 'note') card.append(make('strong', '', block.title || 'Примечание'), make('p', '', block.text || ''));
+    if (block.type === 'heading') card.append(templateText(block.level === '3' ? 'h3' : 'h2', '', block.title || 'Заголовок'));
+    if (block.type === 'text') card.append(templateText('p', '', block.text || 'Текстовый блок'));
+    if (block.type === 'step') { card.append(templateText('h3', '', block.title || `Шаг ${index + 1}`), templateText('p', '', block.text || 'Описание шага')); }
+    if (block.type === 'code') { card.append(make('small', 'code-language', block.language || 'TEXT')); const pre = make('pre'); pre.append(templateText('code', '', block.code || '')); card.append(pre); }
+    if (block.type === 'note') card.append(templateText('strong', '', block.title || 'Примечание'), templateText('p', '', block.text || ''));
+    if (block.type === 'data') card.append(createDataForm(block.fields || defaultDataFields(), { editor: true }));
     if (block.type === 'image') { if (/^https:\/\//i.test(block.src || '') && !/example\.com/i.test(block.src)) { const img = document.createElement('img'); img.src = block.src; img.alt = block.alt || ''; img.className = 'editor-image-preview'; card.append(img); } else card.append(make('div', 'image-placeholder', 'Вставь HTTPS-ссылку на изображение в свойствах блока')); card.append(make('p', '', block.alt || 'Изображение')); }
     if (block.type === 'divider') card.append(make('hr'));
     card.addEventListener('click', (event) => { if (event.target.closest('button')) return; selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); });
@@ -252,7 +293,32 @@ function renderBlockInspector() {
   if (block.type === 'code') { blockProperties.append(inputControl('Язык блока', 'language', block.language, { placeholder: 'bash' }), inputControl('Команды и код', 'code', block.code, { multiline: true })); }
   if (block.type === 'image') blockProperties.append(inputControl('HTTPS-ссылка на изображение', 'src', block.src), inputControl('Alt-текст', 'alt', block.alt));
   if (block.type === 'note') { const label = make('label', 'inspector-field', 'Вид примечания'); const select = document.createElement('select'); select.dataset.blockField = 'variant'; [['warning','Важно'],['info','Информация'],['success','Успех']].forEach(([value,title]) => { const option = document.createElement('option'); option.value=value; option.textContent=title; select.append(option); }); select.value=block.variant||'warning'; label.append(select); blockProperties.append(label); }
-  blockProperties.querySelectorAll('[data-block-field]').forEach((field) => { const update = () => { block[field.dataset.blockField] = field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
+  if (block.type === 'data') {
+    block.fields ||= defaultDataFields();
+    blockProperties.append(make('p', 'field-builder-help', 'Заполнители хранятся только в браузере посетителя. В тексте, шагах, примечаниях и коде используй токен {{ИМЯ_ПОЛЯ}}.'));
+    block.fields.forEach((field, index) => {
+      const card = make('div', 'data-field-editor'); card.append(make('div', 'data-field-editor-heading', `Поле ${index + 1}`));
+      card.append(inputControl('Ключ переменной (латиница)', `field-key-${index}`, field.key, { placeholder: 'NODE_DOMAIN' }));
+      card.append(inputControl('Подпись', `field-label-${index}`, field.label, { placeholder: 'Домен ноды' }));
+      card.append(inputControl('Пример значения', `field-placeholder-${index}`, field.placeholder, { placeholder: 'node.example.com' }));
+      card.append(inputControl('Подсказка под полем', `field-help-${index}`, field.help, { placeholder: 'Необязательно' }));
+      const token = make('code', 'variable-token', `{{${field.key || 'FIELD'}}}`); card.append(token);
+      if (block.fields.length > 1) { const remove = make('button', 'remove-data-field', 'Удалить поле'); remove.type = 'button'; remove.dataset.removeDataField = String(index); card.append(remove); }
+      blockProperties.append(card);
+    });
+    const add = make('button', 'add-data-field', '＋ Добавить поле'); add.type = 'button'; add.dataset.addDataField = ''; add.disabled = block.fields.length >= 20; if (add.disabled) add.title = 'Максимум 20 полей'; blockProperties.append(add);
+  }
+  if (block.type !== 'data') {
+    const variables = currentManual?.blocks.find((item) => item.type === 'data')?.fields || [];
+    if (variables.length) blockProperties.querySelectorAll('[data-block-field="text"],[data-block-field="code"],[data-block-field="title"]').forEach((target) => {
+      const helper = make('div', 'variable-insert-helper'); helper.append(make('span', '', 'Вставить переменную:'));
+      variables.forEach((variable) => { const insert = make('button', 'variable-insert', `{{${variable.key}}}`); insert.type = 'button'; insert.title = `Вставить поле «${variable.label}»`; insert.addEventListener('click', () => { const start = target.selectionStart ?? target.value.length; const end = target.selectionEnd ?? start; target.focus(); target.setRangeText(`{{${variable.key}}}`, start, end, 'end'); target.dispatchEvent(new Event('input', { bubbles: true })); }); helper.append(insert); });
+      target.parentElement.after(helper);
+    });
+  }
+  blockProperties.querySelectorAll('[data-block-field]').forEach((field) => { const update = () => { const key = field.dataset.blockField; const match = key.match(/^field-(key|label|placeholder|help)-(\d+)$/); if (match) { const property = ({ key: 'key', label: 'label', placeholder: 'placeholder', help: 'help' })[match[1]]; const value = property === 'key' ? field.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 40) : field.value; field.value = value; block.fields[Number(match[2])][property] = value; const token = field.closest('.data-field-editor')?.querySelector('.variable-token'); if (token) token.textContent = `{{${value || 'FIELD'}}}`; } else block[key] = field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
+  blockProperties.querySelector('[data-add-data-field]')?.addEventListener('click', () => { block.fields.push({ key: `FIELD_${block.fields.length + 1}`, label: 'Новое поле', placeholder: '', help: '' }); renderBlockInspector(); refreshEditorCanvas(); });
+  blockProperties.querySelectorAll('[data-remove-data-field]').forEach((button) => button.addEventListener('click', () => { block.fields.splice(Number(button.dataset.removeDataField), 1); renderBlockInspector(); refreshEditorCanvas(); }));
 }
 function resetEditor() {
   currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
@@ -411,6 +477,7 @@ pageSlug.addEventListener('input', () => { pageSlug.dataset.edited = 'true'; });
 document.querySelector('#page-category').addEventListener('change', refreshEditorCanvas);
 document.querySelectorAll('[data-add-block]').forEach((button) => button.addEventListener('click', () => {
   if (!currentManual) currentManual = { id: null, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim(), description: pageDescription.value.trim(), status: 'draft', blocks: [] };
+  if (button.dataset.addBlock === 'data' && currentManual.blocks.some((block) => block.type === 'data')) return setEditorMessage('В одном мануале может быть одна форма «Твои данные».', 'error');
   const block = defaultBlock(button.dataset.addBlock); currentManual.blocks.push(block); selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(`${blockNames[block.type]} добавлен. Не забудь сохранить.`);
 }));
 editorCanvas.addEventListener('click', (event) => {
@@ -426,6 +493,9 @@ editorCanvas.addEventListener('click', (event) => {
 async function saveManual(status) {
   const payload = currentPageData(); payload.status = status;
   if (!payload.title || !payload.slug) return setEditorMessage('Заполни название и URL-slug.', 'error');
+  const dataBlocks = payload.blocks.filter((block) => block.type === 'data');
+  if (dataBlocks.length > 1) return setEditorMessage('Добавь только одну форму «Твои данные» на мануал.', 'error');
+  for (const form of dataBlocks) { const keys = form.fields.map((field) => field.key.trim().toLowerCase()); if (keys.some((key) => !/^[a-z][a-z0-9_]{0,39}$/.test(key)) || new Set(keys).size !== keys.length) return setEditorMessage('Проверь ключи полей: только латиница, цифры и _, без повторов.', 'error'); }
   try {
     const saved = await api('/api/admin/manuals', { method: 'PUT', body: JSON.stringify(payload) });
     const ix = manuals.findIndex((item) => item.id === saved.id); if (ix < 0) manuals.push(saved); else manuals[ix] = saved;
