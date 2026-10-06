@@ -4,6 +4,11 @@ const searchBox = document.querySelector('.search-box');
 const searchInput = document.querySelector('#search');
 const defaultGroups = [{ id: 'manuals', title: 'МАНУАЛЫ', icon: 'book' }];
 const defaultSectionColors = { remnawave: '#64e2c1', protocols: '#f3bd70', cdn: '#5bbdf2', security: '#ef88b7' };
+const sectionColorPresets = [
+  ['Бирюзовый', '#64e2c1'], ['Янтарный', '#f3bd70'], ['Голубой', '#5bbdf2'], ['Розовый', '#ef88b7'],
+  ['Фиолетовый', '#ae91ff'], ['Индиго', '#718cff'], ['Коралловый', '#ff8a70'], ['Лаймовый', '#a6d977'],
+  ['Лазурный', '#44c4c9'], ['Сиреневый', '#c28dff'], ['Красный', '#ef647c'], ['Золотой', '#e7c66a']
+];
 const defaultSections = [
   { id: 'remnawave', groupId: 'manuals', title: 'Remnawave', icon: 'book', color: defaultSectionColors.remnawave, manualIds: [] },
   { id: 'protocols', groupId: 'manuals', title: 'Протоколы', icon: 'network', color: defaultSectionColors.protocols, manualIds: [] },
@@ -299,6 +304,10 @@ function renderSidebarManager() {
       const iconLabel = make('label', 'inspector-field', 'Иконка'); const iconSelect = document.createElement('select'); iconSelect.dataset.sectionIcon = ''; fillIconOptions(iconSelect, section.icon); iconLabel.append(iconSelect);
       const colorLabel = make('label', 'inspector-field color-field', 'Цвет подраздела'); const colorInput = document.createElement('input'); colorInput.type = 'color'; colorInput.value = sectionColor(section); colorInput.dataset.sectionColor = ''; colorLabel.append(colorInput);
       const preview = make('span', 'manager-icon-preview'); preview.style.color = sectionColor(section); preview.style.borderColor = sectionColor(section); preview.append(iconElement(section.icon)); fields.append(nameLabel, groupLabel, iconLabel, colorLabel, preview); card.append(fields);
+      const presetRow = make('div', 'color-preset-row'); presetRow.append(make('small', 'color-preset-caption', 'Быстрый выбор цвета'));
+      const presetGrid = make('div', 'color-preset-grid');
+      sectionColorPresets.forEach(([label, value]) => { const swatch = make('button', 'color-preset'); swatch.type = 'button'; swatch.dataset.colorPreset = value; swatch.title = `${label} · ${value}`; swatch.setAttribute('aria-label', `${label}, ${value}`); swatch.setAttribute('aria-pressed', String(sectionColor(section).toLowerCase() === value)); swatch.style.setProperty('--swatch', value); presetGrid.append(swatch); });
+      presetRow.append(presetGrid); card.append(presetRow);
       const manualsList = make('div', 'manager-manuals'); manualsList.append(make('small', 'manager-list-title', `МАНУАЛЫ · ${manuals.filter((item) => item.category === section.id).length}`));
       const rows = sortedSectionManuals(section, { publishedOnly: false });
       if (!rows.length) manualsList.append(make('p', 'manager-empty', 'В подразделе пока нет мануалов.'));
@@ -330,6 +339,8 @@ document.querySelector('#sidebar-manager-groups').addEventListener('click', asyn
   const card = event.target.closest('.manager-section'); if (!card) return;
   const sectionIndex = navigationSections.findIndex((section) => section.id === card.dataset.sectionId); if (sectionIndex < 0) return;
   const section = navigationSections[sectionIndex]; const sectionMove = event.target.closest('[data-move-section]');
+  const colorPreset = event.target.closest('[data-color-preset]');
+  if (colorPreset) { section.color = colorPreset.dataset.colorPreset; await persistNavigation('Цвет подраздела сохранён.'); return; }
   if (sectionMove) { const siblings = navigationSections.filter((item) => item.groupId === section.groupId); const siblingIndex = siblings.findIndex((item) => item.id === section.id); const targetIndex = siblingIndex + (sectionMove.dataset.moveSection === 'up' ? -1 : 1); if (targetIndex < 0 || targetIndex >= siblings.length) return; const from = navigationSections.indexOf(siblings[siblingIndex]); const to = navigationSections.indexOf(siblings[targetIndex]); [navigationSections[from], navigationSections[to]] = [navigationSections[to], navigationSections[from]]; await persistNavigation('Порядок подразделов обновлён.'); return; }
   const remove = event.target.closest('[data-delete-section]');
   if (remove && !remove.disabled) { navigationSections.splice(sectionIndex, 1); await persistNavigation('Пустой раздел удалён.'); return; }
