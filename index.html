@@ -24,6 +24,7 @@
       <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11Z"/><path d="m9 12 2 2 4-4"/></symbol>
       <symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
       <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 1.8 7.2L21 12l-7.2 2.8L12 22l-2.8-7.2L2 12l7.2-2.8L12 2Z"/><path d="m19 2 .8 2.2L22 5l-2.2.8L19 8l-.8-2.2L16 5l2.2-.8L19 2Z"/></symbol>
+      <symbol id="i-wiki-mark" viewBox="0 0 24 24"><path d="m2.5 6 3.8 12 5.7-9 5.6 9 3.9-12M15 5.8c3.5-2.1 6.2.5 3.6 3.1-.8.8-1.8 1.2-2.9 1.8 2.2.4 3.7 1.5 3.7 3.5 0 2.3-2.1 3.7-4.7 3.7-1.3 0-2.4-.3-3.3-.9"/></symbol>
       <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
       <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
       <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
@@ -42,10 +43,10 @@
       <header class="topbar">
         <div class="brand-area">
           <a class="brand" href="/" aria-label="wiki86 — главная">
-            <span class="brand-mark"><svg class="icon"><use href="#i-spark"/></svg></span>
+            <span class="brand-mark"><svg class="icon"><use href="#i-wiki-mark"/></svg></span>
             <span class="brand-name">wiki<span>86</span></span>
           </a>
-          <button class="icon-button menu-toggle" id="sidebar-toggle" aria-label="Открыть меню" aria-expanded="false"><svg class="icon"><use href="#i-menu"/></svg></button>
+          <button class="icon-button menu-toggle mobile-menu-toggle" id="sidebar-toggle" aria-label="Открыть меню" aria-expanded="false"><svg class="icon"><use href="#i-menu"/></svg></button>
         </div>
         <label class="search-box">
           <svg class="icon"><use href="#i-search"/></svg>
@@ -63,25 +64,8 @@
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-label"><span>МАНУАЛЫ</span><span class="label-line"></span></div>
 
-        <nav class="manual-nav" aria-label="Разделы мануалов">
-          <section class="nav-section section-remna" data-section="remnawave">
-            <button class="section-toggle" aria-expanded="false"><span class="section-icon"><svg class="icon"><use href="#i-book"/></svg></span><span class="section-name">Remnawave</span><span class="section-count">0</span><svg class="icon chevron"><use href="#i-chevron"/></svg></button>
-            <div class="section-items" hidden><div class="manual-list"></div><p class="empty-category">Мануалы скоро появятся</p></div>
-          </section>
-          <section class="nav-section section-protocols" data-section="protocols">
-            <button class="section-toggle" aria-expanded="false"><span class="section-icon"><svg class="icon"><use href="#i-network"/></svg></span><span class="section-name">Протоколы</span><span class="section-count">1</span><svg class="icon chevron"><use href="#i-chevron"/></svg></button>
-            <div class="section-items" hidden><div class="manual-list"><a class="manual-link" href="/manual/selfsteal" data-route="/manual/selfsteal"><span class="item-icon"><svg class="icon"><use href="#i-globe"/></svg></span><span>Self-steal</span><i></i></a></div><p class="empty-category" hidden>Мануалы скоро появятся</p></div>
-          </section>
-          <section class="nav-section section-cdn" data-section="cdn">
-            <button class="section-toggle" aria-expanded="false"><span class="section-icon"><svg class="icon"><use href="#i-cloud"/></svg></span><span class="section-name">CDN</span><span class="section-count">0</span><svg class="icon chevron"><use href="#i-chevron"/></svg></button>
-            <div class="section-items" hidden><div class="manual-list"></div><p class="empty-category">Мануалы скоро появятся</p></div>
-          </section>
-          <section class="nav-section section-security" data-section="security">
-            <button class="section-toggle" aria-expanded="false"><span class="section-icon"><svg class="icon"><use href="#i-shield"/></svg></span><span class="section-name">Безопасность</span><span class="section-count">0</span><svg class="icon chevron"><use href="#i-chevron"/></svg></button>
-            <div class="section-items" hidden><div class="manual-list"></div><p class="empty-category">Мануалы скоро появятся</p></div>
-          </section>
-        </nav>
-        <div class="sidebar-footer"><span class="status-light"></span> wiki86 · база знаний</div>
+        <nav class="manual-nav" id="manual-nav" aria-label="Разделы мануалов"></nav>
+        <div class="sidebar-footer"><span class="status-light"></span><span class="sidebar-footer-text">wiki86 · база знаний</span></div>
       </aside>
 
       <main class="main-content">
@@ -97,34 +81,31 @@
           <div class="welcome-bottom"><span></span> ПРОВЕРЕННЫЕ ШАГИ <b>✦</b> ПЕРСОНАЛЬНЫЕ ПОДСТАНОВКИ <b>✦</b> ПОНЯТНЫЙ РЕЗУЛЬТАТ <span></span></div>
         </section>
 
-        <article class="manual-view route-view" id="selfsteal-view" hidden>
-          <div class="breadcrumbs"><a href="/" data-route="/">wiki86</a><b>/</b><span>ПРОТОКОЛЫ</span><b>/</b><strong>SELF-STEAL</strong></div>
-          <div class="manual-heading"><div class="manual-title-icon"><svg class="icon"><use href="#i-globe"/></svg></div><div><p class="eyebrow">ПРОТОКОЛЫ · REALITY</p><h1>Self-steal</h1><p class="manual-subtitle">Персональные значения сохраняются в браузере и будут подставляться в команды мануала.</p></div></div>
-          <details class="user-data" id="user-data" open>
+        <template id="selfsteal-data-template">
+          <details class="user-data" open>
             <summary><span class="data-summary-icon"><svg class="icon"><use href="#i-terminal"/></svg></span><span class="data-summary-title">Твои данные</span><span class="data-summary-help">заполни один раз — используй по всему мануалу</span><svg class="icon summary-arrow"><use href="#i-chevron"/></svg></summary>
-            <div class="data-content"><p class="data-intro">Укажи данные, которые будут использоваться в инструкции. Пока всё сохраняется только в этом браузере.</p>
+          <div class="data-content"><p class="data-intro">Укажи данные, которые будут использоваться в инструкции. Пока всё сохраняется только в этом браузере.</p>
               <div class="data-grid">
                 <label class="field"><span>Домен ноды <code>NODE_DOMAIN</code></span><input data-value="nodeDomain" placeholder="node.example.com" autocomplete="url" /><small>A-запись домена должна вести на IP ноды.</small></label>
                 <label class="field"><span>Название сайта <code>SITE_NAME</code></span><input data-value="siteName" placeholder="Например, заметки на полях" /><small>Заголовок сайта, которым прикрывается Reality.</small></label>
                 <label class="field"><span>Почта для сертификата <code>LE_EMAIL</code></span><input data-value="email" type="email" placeholder="mail@example.com" autocomplete="email" /><small>Адрес для уведомлений Let’s Encrypt.</small></label>
               </div>
-              <div class="data-actions"><button class="text-button" id="clear-data">Очистить поля</button><span>сохраняется локально в твоём браузере</span><span class="save-indicator" id="save-indicator">Сохранено</span></div>
+              <div class="data-actions"><button class="text-button" data-clear-data type="button">Очистить поля</button><span>сохраняется локально в твоём браузере</span><span class="save-indicator">Сохранено</span></div>
           </div></details>
-          <section class="manual-placeholder"><div class="placeholder-heading"><span class="step-number">01</span><div><p class="eyebrow">ИНСТРУКЦИЯ</p><h2>Мануал готовится</h2></div></div><p>Следующим шагом добавим сюда полную настройку Self-steal. Введённые данные будут автоматически появляться в командах и конфигурациях.</p>
-            <div class="variable-preview"><div><span><svg class="icon"><use href="#i-globe"/></svg> Домен ноды</span><code data-preview="nodeDomain">node.example.com</code></div><div><span><svg class="icon"><use href="#i-book"/></svg> Название сайта</span><code data-preview="siteName">—</code></div><div><span><svg class="icon"><use href="#i-terminal"/></svg> Почта</span><code data-preview="email">mail@example.com</code></div></div>
-          </section>
-        </article>
+          <div class="variable-preview"><div><span><svg class="icon"><use href="#i-globe"/></svg> Домен ноды</span><code data-preview="nodeDomain">node.example.com</code></div><div><span><svg class="icon"><use href="#i-book"/></svg> Название сайта</span><code data-preview="siteName">—</code></div><div><span><svg class="icon"><use href="#i-terminal"/></svg> Почта</span><code data-preview="email">mail@example.com</code></div></div>
+        </template>
 
         <section class="builder-view route-view" id="admin-view" hidden>
           <div class="builder-heading-row"><div><div class="breadcrumbs"><a href="/" data-route="/">wiki86</a><b>/</b><strong>АДМИН-ПАНЕЛЬ</strong></div><h1>Конструктор мануалов</h1><p>Редактируй страницы и публикуй изменения без работы с кодом.</p></div><span class="preview-badge"><i></i> СОХРАНЕНИЕ НА СЕРВЕР</span></div>
           <div class="builder-toolbar"><label class="manual-picker">Редактировать страницу <select id="manual-picker"><option value="">＋ Новая инструкция</option></select></label><span class="toolbar-url" id="editor-url">Новая страница</span><div class="toolbar-actions"><button class="toolbar-quiet" id="logout-button" type="button">Выйти</button><button class="toolbar-quiet danger-button" id="delete-manual" type="button" hidden>Удалить</button><button class="toolbar-save" id="save-draft" type="button">Сохранить черновик</button><button class="toolbar-save publish-button" id="publish-manual" type="button">Опубликовать</button></div></div>
+          <details class="sidebar-manager" id="sidebar-manager"><summary><span>Настройка бокового меню</span><span class="manager-summary-hint">Разделы, иконки и порядок</span><svg class="icon"><use href="#i-chevron"/></svg></summary><div class="sidebar-manager-content"><div id="sidebar-manager-sections" class="sidebar-manager-sections"></div><form id="new-section-form" class="new-section-form"><label class="inspector-field">Новый раздел<input id="new-section-title" maxlength="40" placeholder="Например, Инструменты" required /></label><label class="inspector-field">Иконка<select id="new-section-icon"></select></label><button class="toolbar-save" type="submit">＋ Добавить раздел</button></form><p class="editor-message" id="navigation-message" role="status"></p></div></details>
           <div class="builder-layout functional-builder">
             <aside class="builder-palette"><div class="builder-panel-title"><div><small>ДОБАВИТЬ В МАНУАЛ</small><strong>Блоки</strong></div><span>7</span></div><p class="palette-hint">Добавь блок, затем выбери его на странице для редактирования.</p>
               <div class="block-palette"><button type="button" class="palette-block" data-add-block="heading"><span class="block-icon heading-icon"><svg class="icon"><use href="#i-heading"/></svg></span><span><b>Заголовок</b><small>Название раздела</small></span><svg class="icon block-plus"><use href="#i-plus"/></svg></button><button type="button" class="palette-block" data-add-block="text"><span class="block-icon text-icon"><svg class="icon"><use href="#i-text"/></svg></span><span><b>Текст</b><small>Абзац с пояснением</small></span><svg class="icon block-plus"><use href="#i-plus"/></svg></button><button type="button" class="palette-block" data-add-block="step"><span class="block-icon list-icon"><svg class="icon"><use href="#i-list"/></svg></span><span><b>Шаг инструкции</b><small>Заголовок и описание</small></span><svg class="icon block-plus"><use href="#i-plus"/></svg></button><button type="button" class="palette-block" data-add-block="code"><span class="block-icon code-icon"><svg class="icon"><use href="#i-code"/></svg></span><span><b>Команда / код</b><small>Копируемый блок</small></span><svg class="icon block-plus"><use href="#i-plus"/></svg></button><button type="button" class="palette-block" data-add-block="note"><span class="block-icon alert-icon"><svg class="icon"><use href="#i-alert"/></svg></span><span><b>Примечание</b><small>Важная информация</small></span><svg class="icon block-plus"><use href="#i-plus"/></svg></button><button type="button" class="palette-block" data-add-block="image"><span class="block-icon image-icon"><svg class="icon"><use href="#i-image"/></svg></span><span><b>Изображение</b><small>Ссылка на HTTPS-картинку</small></span><svg class="icon block-plus"><use href="#i-plus"/></svg></button><button type="button" class="palette-block" data-add-block="divider"><span class="block-icon divider-icon"><span></span></span><span><b>Разделитель</b><small>Отступ между частями</small></span><svg class="icon block-plus"><use href="#i-plus"/></svg></button></div>
               <div class="palette-tip"><svg class="icon"><use href="#i-spark"/></svg><span><b>Совет</b><br/>Управляй порядком блоков кнопками ↑ и ↓ на карточке.</span></div>
             </aside>
             <section class="builder-canvas-wrap"><div class="canvas-topline"><span><i></i> ПРЕДПРОСМОТР СТРАНИЦЫ</span><div class="device-switch"><button class="selected" type="button" aria-label="Широкий экран">▣</button></div></div><div class="page-canvas" id="editor-canvas"><div class="editor-empty"><span class="generated-icon"><svg class="icon"><use href="#i-book"/></svg></span><h2>Новая инструкция</h2><p>Заполни параметры страницы справа и добавь содержимое из списка блоков.</p></div></div></section>
-            <aside class="builder-inspector"><div class="inspector-tabs"><button class="selected" type="button">Свойства</button></div><div class="inspector-content"><form id="page-properties"><div class="inspector-heading"><span class="block-icon heading-icon"><svg class="icon"><use href="#i-heading"/></svg></span><div><small>ПАРАМЕТРЫ СТРАНИЦЫ</small><strong>Мануал</strong></div></div><label class="inspector-field">Название<input id="page-title" maxlength="100" required placeholder="Например, Настройка CDN" /></label><label class="inspector-field">Раздел<select id="page-category"><option value="remnawave">Remnawave</option><option value="protocols">Протоколы</option><option value="cdn">CDN</option><option value="security">Безопасность</option></select></label><label class="inspector-field">URL-slug<input id="page-slug" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" required placeholder="yandex-cdn" /></label><label class="inspector-field">Краткое описание<textarea id="page-description" maxlength="500" placeholder="Что описывает инструкция"></textarea></label></form><div id="block-properties" hidden></div><p class="editor-message" id="editor-message" role="status"></p><div class="inspector-footnote"><svg class="icon"><use href="#i-spark"/></svg> Страницы и блоки сохраняются в серверном JSON-файле.</div></div></aside>
+            <aside class="builder-inspector"><div class="inspector-tabs"><button class="selected" type="button">Свойства</button></div><div class="inspector-content"><form id="page-properties"><div class="inspector-heading"><span class="block-icon heading-icon"><svg class="icon"><use href="#i-heading"/></svg></span><div><small>ПАРАМЕТРЫ СТРАНИЦЫ</small><strong>Мануал</strong></div></div><label class="inspector-field">Название<input id="page-title" maxlength="100" required placeholder="Например, Настройка CDN" /></label><label class="inspector-field">Раздел<select id="page-category"></select></label><label class="inspector-field">URL-slug<input id="page-slug" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" required placeholder="yandex-cdn" /></label><label class="inspector-field">Краткое описание<textarea id="page-description" maxlength="500" placeholder="Что описывает инструкция"></textarea></label></form><div id="block-properties" hidden></div><p class="editor-message" id="editor-message" role="status"></p><div class="inspector-footnote"><svg class="icon"><use href="#i-spark"/></svg> Страницы, блоки и меню сохраняются на сервере.</div></div></aside>
           </div>
         </section>
 

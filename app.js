@@ -2,9 +2,18 @@ const sidebar = document.querySelector('#sidebar');
 const scrim = document.querySelector('#mobile-scrim');
 const searchBox = document.querySelector('.search-box');
 const searchInput = document.querySelector('#search');
-const categories = { remnawave: 'Remnawave', protocols: 'Протоколы', cdn: 'CDN', security: 'Безопасность' };
+const defaultSections = [
+  { id: 'remnawave', title: 'Remnawave', icon: 'book', manualIds: [] },
+  { id: 'protocols', title: 'Протоколы', icon: 'network', manualIds: [] },
+  { id: 'cdn', title: 'CDN', icon: 'cloud', manualIds: [] },
+  { id: 'security', title: 'Безопасность', icon: 'shield', manualIds: [] }
+];
+const iconChoices = [['book','Книга'],['network','Сеть'],['cloud','Облако'],['shield','Щит'],['globe','Глобус'],['terminal','Терминал'],['spark','Искра'],['heading','Заголовок'],['text','Текст'],['list','Список'],['code','Код'],['alert','Внимание'],['image','Изображение'],['panel','Панель'],['chevron','Стрелка']];
+let navigationSections = structuredClone(defaultSections);
+let categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
+const openSections = new Set();
 const blockNames = { heading: 'Заголовок', text: 'Текст', step: 'Шаг инструкции', code: 'Команда / код', note: 'Примечание', image: 'Изображение', divider: 'Разделитель' };
-const routeViews = { '/': document.querySelector('#welcome-view'), '/manual/selfsteal': document.querySelector('#selfsteal-view'), '/admin': document.querySelector('#admin-view') };
+const routeViews = { '/': document.querySelector('#welcome-view'), '/admin': document.querySelector('#admin-view') };
 let manuals = [];
 let currentManual = null;
 let selectedBlockId = null;
@@ -17,14 +26,12 @@ async function api(url, options = {}) {
   return data;
 }
 
-document.querySelectorAll('.section-toggle').forEach((button) => button.addEventListener('click', () => {
-  const expanded = button.getAttribute('aria-expanded') === 'true';
-  button.setAttribute('aria-expanded', String(!expanded));
-  button.nextElementSibling.hidden = expanded;
-}));
 function closeMobileSidebar() { sidebar.classList.remove('open'); scrim.classList.remove('show'); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', 'false'); }
+function isMobileLayout() { return window.matchMedia('(max-width: 680px)').matches; }
+document.body.classList.remove('sidebar-compact');
+localStorage.removeItem('wiki86-sidebar-compact-v1');
 document.querySelector('#sidebar-toggle').addEventListener('click', () => {
-  const open = sidebar.classList.toggle('open'); scrim.classList.toggle('show', open); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', String(open));
+  if (isMobileLayout()) { const open = sidebar.classList.toggle('open'); scrim.classList.toggle('show', open); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', String(open)); }
 });
 scrim.addEventListener('click', closeMobileSidebar);
 function normalizePath(path) { return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path; }
@@ -38,7 +45,7 @@ function navigate(path) {
   renderRoute(path);
 }
 function openCategory(category) {
-  const section = document.querySelector(`[data-section="${category}"]`);
+  const section = document.querySelector(`[data-section="${CSS.escape(category)}"]`);
   if (!section) return;
   section.querySelector('.section-toggle').setAttribute('aria-expanded', 'true');
   section.querySelector('.section-items').hidden = false;
@@ -62,7 +69,6 @@ function renderRoute(path, { scroll = true } = {}) {
     }).catch(() => {});
     document.title = `${custom.title} — wiki86`; openCategory(custom.category);
   } else if (custom) { renderPublishedManual(custom); document.title = `${custom.title} — wiki86`; openCategory(custom.category); }
-  else if (currentPath === '/manual/selfsteal') { document.title = 'Self-steal — wiki86'; openCategory('protocols'); }
   else if (currentPath === '/') document.title = 'wiki86 — мануалы и настройки';
   else if (currentPath === '/admin') document.title = 'Конструктор страниц — wiki86';
   else document.title = 'Страница не найдена — wiki86';
@@ -79,31 +85,60 @@ window.addEventListener('popstate', () => renderRoute(location.pathname));
 window.addEventListener('hashchange', () => renderRoute(currentRoute()));
 
 const userDataKey = 'wiki86-user-data-v1';
-const dataFields = [...document.querySelectorAll('[data-value]')];
 let storedUserData = {};
 try { storedUserData = JSON.parse(localStorage.getItem(userDataKey) || '{}'); } catch { storedUserData = {}; }
-dataFields.forEach((field) => { field.value = typeof storedUserData[field.dataset.value] === 'string' ? storedUserData[field.dataset.value] : ''; });
-function updateDataPreview() {
-  dataFields.forEach((field) => document.querySelectorAll(`[data-preview="${field.dataset.value}"]`).forEach((target) => { target.textContent = field.value.trim() || (field.dataset.value === 'nodeDomain' ? 'node.example.com' : field.dataset.value === 'email' ? 'mail@example.com' : '—'); }));
+function updateDataPreview(root = document) {
+  root.querySelectorAll('[data-value]').forEach((field) => { field.value = typeof storedUserData[field.dataset.value] === 'string' ? storedUserData[field.dataset.value] : ''; });
+  root.querySelectorAll('[data-preview]').forEach((target) => { const key = target.dataset.preview; target.textContent = storedUserData[key]?.trim() || (key === 'nodeDomain' ? 'node.example.com' : key === 'email' ? 'mail@example.com' : '—'); });
 }
-dataFields.forEach((field) => field.addEventListener('input', () => { storedUserData[field.dataset.value] = field.value; localStorage.setItem(userDataKey, JSON.stringify(storedUserData)); updateDataPreview(); document.querySelector('#save-indicator').classList.add('visible'); setTimeout(() => document.querySelector('#save-indicator').classList.remove('visible'), 1200); }));
-document.querySelector('#clear-data').addEventListener('click', () => { localStorage.removeItem(userDataKey); dataFields.forEach((field) => { field.value = ''; }); storedUserData = {}; updateDataPreview(); });
-updateDataPreview();
+document.addEventListener('input', (event) => {
+  const field = event.target.closest('[data-value]'); if (!field) return;
+  storedUserData[field.dataset.value] = field.value; localStorage.setItem(userDataKey, JSON.stringify(storedUserData));
+  const panel = field.closest('.user-data'); panel?.querySelector('.save-indicator')?.classList.add('visible');
+  setTimeout(() => panel?.querySelector('.save-indicator')?.classList.remove('visible'), 1200);
+  updateDataPreview(field.closest('#published-manual-content') || document);
+});
+document.addEventListener('click', (event) => {
+  if (!event.target.closest('[data-clear-data]')) return;
+  localStorage.removeItem(userDataKey); storedUserData = {};
+  document.querySelectorAll('[data-value]').forEach((field) => { field.value = ''; }); updateDataPreview();
+});
 
-function renderManualLinks() {
-  const sections = [...document.querySelectorAll('.nav-section')];
-  sections.forEach((section) => {
-    const category = section.dataset.section; const list = section.querySelector('.manual-list');
-    list.querySelectorAll('[data-api-manual]').forEach((link) => link.remove());
-    manuals.filter((manual) => manual.category === category && manual.status === 'published').forEach((manual) => {
-      const link = document.createElement('a'); link.className = 'manual-link'; link.href = manual.path; link.dataset.route = manual.path; link.dataset.apiManual = 'true';
-      const icon = document.createElement('span'); icon.className = 'item-icon'; const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.classList.add('icon'); const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', '#i-book'); svg.append(use); icon.append(svg);
-      const title = document.createElement('span'); title.textContent = manual.title; const dot = document.createElement('i'); link.append(icon, title, dot); list.append(link);
-    });
-    section.querySelector('.section-count').textContent = String(list.querySelectorAll('.manual-link').length);
-    section.querySelector('.empty-category').hidden = list.querySelectorAll('.manual-link').length > 0;
-  });
+function iconElement(name, className = 'icon') {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.classList.add(...className.split(' '));
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', `#i-${iconChoices.some(([key]) => key === name) ? name : 'book'}`); svg.append(use); return svg;
 }
+function sortedSectionManuals(section, { publishedOnly = true } = {}) {
+  const rows = manuals.filter((manual) => manual.category === section.id && (!publishedOnly || manual.status === 'published'));
+  const rank = new Map((section.manualIds || []).map((id, index) => [id, index]));
+  return rows.sort((a, b) => (rank.get(a.id) ?? 1e6) - (rank.get(b.id) ?? 1e6) || a.title.localeCompare(b.title, 'ru'));
+}
+function renderManualLinks() {
+  const nav = document.querySelector('#manual-nav'); nav.replaceChildren(); categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
+  navigationSections.forEach((data, sectionIndex) => {
+    const section = make('section', `nav-section section-${['remna','protocols','cdn','security'][sectionIndex % 4]}`); section.dataset.section = data.id;
+    const toggle = make('button', 'section-toggle'); toggle.type = 'button'; toggle.setAttribute('aria-expanded', String(openSections.has(data.id)));
+    const icon = make('span', 'section-icon'); icon.append(iconElement(data.icon)); const name = make('span', 'section-name', data.title);
+    const rows = sortedSectionManuals(data); const count = make('span', 'section-count', String(rows.length)); const chevron = iconElement('chevron', 'icon chevron');
+    toggle.append(icon, name, count, chevron); toggle.title = data.title;
+    const items = make('div', 'section-items'); items.hidden = !openSections.has(data.id);
+    const list = make('div', 'manual-list');
+    rows.forEach((manual) => {
+      const link = document.createElement('a'); link.className = 'manual-link'; link.href = manual.path; link.dataset.route = manual.path; link.title = manual.title;
+      const badge = make('span', 'item-icon'); badge.append(iconElement(manual.path === '/manual/selfsteal' ? 'globe' : 'book'));
+      link.append(badge, make('span', '', manual.title), make('i')); list.append(link);
+    });
+    const empty = make('p', 'empty-category', 'Мануалы скоро появятся'); empty.hidden = rows.length > 0;
+    items.append(list, empty); section.append(toggle, items); nav.append(section);
+  });
+  renderSidebarManager();
+}
+document.querySelector('#manual-nav').addEventListener('click', (event) => {
+  const toggle = event.target.closest('.section-toggle'); if (!toggle) return;
+  const section = toggle.closest('.nav-section'); const id = section.dataset.section; const expanded = openSections.has(id);
+  if (expanded) openSections.delete(id); else openSections.add(id);
+  toggle.setAttribute('aria-expanded', String(!expanded)); section.querySelector('.section-items').hidden = expanded;
+});
 
 function make(tag, className, text) { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = text; return element; }
 function renderPublishedManual(manual) {
@@ -114,6 +149,7 @@ function renderPublishedManual(manual) {
   hero.append(make('p', 'eyebrow', `${categories[manual.category].toLocaleUpperCase('ru')} · ИНСТРУКЦИЯ`), make('h1', '', manual.title));
   if (manual.description) hero.append(make('p', 'published-description', manual.description));
   root.append(hero);
+  if (manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); root.append(dataPanel); updateDataPreview(root); }
   const content = make('div', 'published-blocks');
   manual.blocks.forEach((block, index) => {
     let element;
@@ -195,7 +231,7 @@ function renderBlockInspector() {
   blockProperties.querySelectorAll('[data-block-field]').forEach((field) => { const update = () => { block[field.dataset.blockField] = field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
 }
 function resetEditor() {
-  currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = 'cdn'; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#manual-picker').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
+  currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
 }
 function setEditorMessage(message, kind = 'success') { editorMessage.textContent = message; editorMessage.dataset.kind = kind; }
 function hydrateEditor(manual) {
@@ -207,6 +243,66 @@ function renderPicker() {
   manuals.forEach((manual) => { const option = document.createElement('option'); option.value = manual.id; option.textContent = `${manual.title} · ${manual.status === 'published' ? 'опубликовано' : 'черновик'}`; picker.append(option); });
   if (currentManual?.id) picker.value = currentManual.id;
 }
+function fillIconOptions(select, selected = 'book') {
+  select.replaceChildren();
+  iconChoices.filter(([id]) => id !== 'chevron').forEach(([id, label]) => { const option = document.createElement('option'); option.value = id; option.textContent = label; select.append(option); });
+  select.value = selected;
+}
+function renderCategoryOptions(selected = pageCategory.value) {
+  pageCategory.replaceChildren();
+  navigationSections.forEach((section) => { const option = document.createElement('option'); option.value = section.id; option.textContent = section.title; pageCategory.append(option); });
+  pageCategory.value = navigationSections.some((section) => section.id === selected) ? selected : navigationSections[0]?.id || '';
+}
+function renderSidebarManager() {
+  const root = document.querySelector('#sidebar-manager-sections'); if (!root) return;
+  root.replaceChildren();
+  navigationSections.forEach((section, sectionIndex) => {
+    const card = make('section', 'manager-section'); card.dataset.sectionId = section.id;
+    const heading = make('div', 'manager-section-heading'); heading.append(make('span', 'manager-order', String(sectionIndex + 1).padStart(2, '0')), make('strong', '', section.title));
+    [['↑','up'],['↓','down']].forEach(([label, direction]) => { const button = make('button', 'manager-move', label); button.type = 'button'; button.title = `${direction === 'up' ? 'Выше' : 'Ниже'}`; button.dataset.moveSection = direction; button.disabled = (direction === 'up' && sectionIndex === 0) || (direction === 'down' && sectionIndex === navigationSections.length - 1); heading.append(button); });
+    const remove = make('button', 'manager-remove', 'Удалить'); remove.type = 'button'; remove.dataset.deleteSection = ''; remove.disabled = navigationSections.length === 1 || manuals.some((manual) => manual.category === section.id); remove.title = remove.disabled ? 'Сначала перемести мануалы из раздела' : 'Удалить пустой раздел'; heading.append(remove); card.append(heading);
+    const fields = make('div', 'manager-section-fields'); const nameLabel = make('label', 'inspector-field', 'Название раздела'); const name = document.createElement('input'); name.maxLength = 40; name.value = section.title; name.dataset.sectionTitle = ''; nameLabel.append(name);
+    const iconLabel = make('label', 'inspector-field', 'Иконка из библиотеки'); const iconSelect = document.createElement('select'); iconSelect.dataset.sectionIcon = ''; fillIconOptions(iconSelect, section.icon); iconLabel.append(iconSelect);
+    const preview = make('span', 'manager-icon-preview'); preview.append(iconElement(section.icon)); fields.append(nameLabel, iconLabel, preview); card.append(fields);
+    const manualsList = make('div', 'manager-manuals'); manualsList.append(make('small', 'manager-list-title', `МАНУАЛЫ · ${manuals.filter((item) => item.category === section.id).length}`));
+    const rows = sortedSectionManuals(section, { publishedOnly: false });
+    if (!rows.length) manualsList.append(make('p', 'manager-empty', 'В разделе пока нет мануалов.'));
+    rows.forEach((manual, index) => { const row = make('div', 'manager-manual-row'); row.dataset.manualId = manual.id; row.append(make('span', '', manual.title), make('small', '', manual.status === 'published' ? 'опубликован' : 'черновик'));
+      [['↑','up'],['↓','down']].forEach(([label, direction]) => { const button = make('button', 'manager-move', label); button.type = 'button'; button.dataset.moveManual = direction; button.disabled = (direction === 'up' && index === 0) || (direction === 'down' && index === rows.length - 1); button.title = `${direction === 'up' ? 'Переместить выше' : 'Переместить ниже'}`; row.append(button); }); manualsList.append(row); });
+    card.append(manualsList); root.append(card);
+  });
+  renderCategoryOptions(pageCategory.value);
+}
+async function persistNavigation(message = 'Настройки меню сохранены на сервере.') {
+  const indicator = document.querySelector('#navigation-message'); indicator.textContent = 'Сохраняю меню…'; indicator.dataset.kind = '';
+  try { const saved = await api('/api/admin/navigation', { method: 'PUT', body: JSON.stringify({ sections: navigationSections }) }); navigationSections = saved.sections; renderManualLinks(); indicator.textContent = message; }
+  catch (error) { indicator.textContent = error.message; indicator.dataset.kind = 'error'; }
+}
+document.querySelector('#sidebar-manager-sections').addEventListener('click', async (event) => {
+  const card = event.target.closest('.manager-section'); if (!card) return;
+  const sectionIndex = navigationSections.findIndex((section) => section.id === card.dataset.sectionId); if (sectionIndex < 0) return;
+  const section = navigationSections[sectionIndex]; const sectionMove = event.target.closest('[data-move-section]');
+  if (sectionMove) { const targetIndex = sectionIndex + (sectionMove.dataset.moveSection === 'up' ? -1 : 1); if (targetIndex < 0 || targetIndex >= navigationSections.length) return; [navigationSections[sectionIndex], navigationSections[targetIndex]] = [navigationSections[targetIndex], navigationSections[sectionIndex]]; await persistNavigation('Порядок разделов обновлён.'); return; }
+  const remove = event.target.closest('[data-delete-section]');
+  if (remove && !remove.disabled) { navigationSections.splice(sectionIndex, 1); await persistNavigation('Пустой раздел удалён.'); return; }
+  const manualMove = event.target.closest('[data-move-manual]'); if (!manualMove) return;
+  const rows = sortedSectionManuals(section, { publishedOnly: false }); const index = rows.findIndex((manual) => manual.id === manualMove.closest('[data-manual-id]').dataset.manualId); const targetIndex = index + (manualMove.dataset.moveManual === 'up' ? -1 : 1);
+  if (index < 0 || targetIndex < 0 || targetIndex >= rows.length) return;
+  const ids = rows.map((manual) => manual.id); [ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]]; section.manualIds = ids; await persistNavigation('Порядок мануалов обновлён.');
+});
+document.querySelector('#sidebar-manager-sections').addEventListener('change', async (event) => {
+  const card = event.target.closest('.manager-section'); if (!card) return; const section = navigationSections.find((item) => item.id === card.dataset.sectionId); if (!section) return;
+  if (event.target.matches('[data-section-title]')) { const title = event.target.value.trim(); if (!title) { event.target.value = section.title; return; } if (navigationSections.some((item) => item.id !== section.id && item.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { event.target.value = section.title; document.querySelector('#navigation-message').textContent = 'Такое название раздела уже есть.'; return; } section.title = title; }
+  if (event.target.matches('[data-section-icon]')) section.icon = event.target.value;
+  await persistNavigation('Раздел обновлён.');
+});
+document.querySelector('#new-section-icon').addEventListener('focus', (event) => { if (!event.target.options.length) fillIconOptions(event.target); });
+document.querySelector('#new-section-form').addEventListener('submit', async (event) => {
+  event.preventDefault(); const title = document.querySelector('#new-section-title').value.trim(); if (!title) return;
+  if (navigationSections.some((section) => section.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { document.querySelector('#navigation-message').textContent = 'Такое название раздела уже есть.'; return; }
+  navigationSections.push({ id: `section-${crypto.randomUUID().slice(0, 8)}`, title, icon: document.querySelector('#new-section-icon').value || 'book', manualIds: [] });
+  document.querySelector('#new-section-title').value = ''; await persistNavigation('Новый раздел добавлен.'); document.querySelector('#sidebar-manager').open = true;
+});
 async function loadAdminManuals() { manuals = await api('/api/admin/manuals'); renderPicker(); renderManualLinks(); }
 async function migrateBrowserDrafts() {
   let legacy = [];
@@ -291,11 +387,13 @@ document.addEventListener('keydown', (event) => { if ((event.ctrlKey || event.me
 
 async function init() {
   try {
+    const navigation = await api('/api/navigation'); navigationSections = navigation.sections || structuredClone(defaultSections); categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
+    renderCategoryOptions(); fillIconOptions(document.querySelector('#new-section-icon'));
     manuals = await api('/api/manuals'); renderManualLinks();
     const path = currentRoute();
-    if (path.startsWith('/manual/') && path !== '/manual/selfsteal') {
+    if (path.startsWith('/manual/')) {
       const manual = await api(`/api/manuals?path=${encodeURIComponent(path)}`);
-      if (manual) { manuals = manuals.filter((item) => item.path !== manual.path).concat(manual); }
+      if (manual) { manuals = manuals.filter((item) => item.path !== manual.path).concat(manual); renderManualLinks(); }
     }
   } catch (error) { console.error('wiki86 startup failed', error); }
   renderRoute(currentRoute(), { scroll: false });
