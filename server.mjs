@@ -15,11 +15,12 @@ const sessions = new Map();
 const failedLogins = new Map();
 const maxBodyBytes = 1_000_000;
 const defaultGroups = [{ id: 'manuals', title: 'МАНУАЛЫ', icon: 'book' }];
+const defaultSectionColors = { remnawave: '#64e2c1', protocols: '#f3bd70', cdn: '#5bbdf2', security: '#ef88b7' };
 const defaultNavigation = [
-  { id: 'remnawave', groupId: 'manuals', title: 'Remnawave', icon: 'book', manualIds: [] },
-  { id: 'protocols', groupId: 'manuals', title: 'Протоколы', icon: 'network', manualIds: [] },
-  { id: 'cdn', groupId: 'manuals', title: 'CDN', icon: 'cloud', manualIds: [] },
-  { id: 'security', groupId: 'manuals', title: 'Безопасность', icon: 'shield', manualIds: [] }
+  { id: 'remnawave', groupId: 'manuals', title: 'Remnawave', icon: 'book', color: defaultSectionColors.remnawave, manualIds: [] },
+  { id: 'protocols', groupId: 'manuals', title: 'Протоколы', icon: 'network', color: defaultSectionColors.protocols, manualIds: [] },
+  { id: 'cdn', groupId: 'manuals', title: 'CDN', icon: 'cloud', color: defaultSectionColors.cdn, manualIds: [] },
+  { id: 'security', groupId: 'manuals', title: 'Безопасность', icon: 'shield', color: defaultSectionColors.security, manualIds: [] }
 ];
 const iconNames = new Set(['book','network','cloud','shield','globe','terminal','spark','heading','text','list','code','alert','image','panel']);
 let categories = new Set(defaultNavigation.map((section) => section.id));
@@ -44,13 +45,13 @@ async function readNavigation() {
   const saved = JSON.parse(await readFile(navigationFile, 'utf8'));
   const sections = Array.isArray(saved.sections) && saved.sections.length ? saved.sections : structuredClone(defaultNavigation);
   if (!Array.isArray(saved.groups) || !saved.groups.length) {
-    const migrated = { groups: structuredClone(defaultGroups), sections: sections.map((section) => ({ ...section, groupId: 'manuals' })) };
+    const migrated = { groups: structuredClone(defaultGroups), sections: sections.map((section) => ({ ...section, groupId: 'manuals', color: /^#[\da-f]{6}$/i.test(section.color || '') ? section.color : defaultSectionColors[section.id] || defaultSectionColors.remnawave })) };
     await writeNavigation(migrated);
     return migrated;
   }
   const groups = saved.groups.map((group) => ({ id: String(group.id), title: String(group.title), icon: String(group.icon || 'book') }));
   const groupIds = new Set(groups.map((group) => group.id));
-  return { groups, sections: sections.map((section) => ({ ...section, groupId: groupIds.has(section.groupId) ? section.groupId : groups[0].id })) };
+  return { groups, sections: sections.map((section) => ({ ...section, groupId: groupIds.has(section.groupId) ? section.groupId : groups[0].id, color: /^#[\da-f]{6}$/i.test(section.color || '') ? section.color : defaultSectionColors[section.id] || defaultSectionColors.remnawave })) };
 }
 async function writeNavigation(value) {
   const tmp = `${navigationFile}.${randomUUID()}.tmp`;
@@ -158,14 +159,15 @@ const server = createServer(async (req, res) => {
         });
         const groupIds = new Set(groups.map((group) => group.id)); const sectionTitles = new Set();
         const sections = input.sections.map((raw) => {
-          const id = String(raw.id || '').trim(); const title = String(raw.title || '').trim().slice(0, 40); const icon = String(raw.icon || 'book');
+          const id = String(raw.id || '').trim(); const title = String(raw.title || '').trim().slice(0, 40); const icon = String(raw.icon || 'book'); const color = String(raw.color || defaultSectionColors[id] || defaultSectionColors.remnawave);
           if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || ids.has(id)) throw new Error('Идентификаторы разделов должны быть уникальными.');
           const groupId = String(raw.groupId || ''); const normalizedTitle = `${groupId}:${title.toLocaleLowerCase('ru')}`;
           if (!title || sectionTitles.has(normalizedTitle) || !groupIds.has(groupId)) throw new Error('Укажи уникальное название подраздела и существующую группу.');
           if (!iconNames.has(icon)) throw new Error('Выбрана неизвестная иконка.');
+          if (!/^#[\da-f]{6}$/i.test(color)) throw new Error('Цвет подраздела должен быть в формате HEX.');
           ids.add(id); sectionTitles.add(normalizedTitle);
           const manualIds = Array.isArray(raw.manualIds) ? [...new Set(raw.manualIds.map(String))].slice(0, 1000) : [];
-          return { id, groupId, title, icon, manualIds };
+          return { id, groupId, title, icon, color, manualIds };
         });
         const currentManuals = await readManuals(); const sectionIds = new Set(sections.map((section) => section.id));
         const orphan = currentManuals.find((manual) => !sectionIds.has(manual.category));

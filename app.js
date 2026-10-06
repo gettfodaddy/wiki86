@@ -3,11 +3,12 @@ const scrim = document.querySelector('#mobile-scrim');
 const searchBox = document.querySelector('.search-box');
 const searchInput = document.querySelector('#search');
 const defaultGroups = [{ id: 'manuals', title: 'МАНУАЛЫ', icon: 'book' }];
+const defaultSectionColors = { remnawave: '#64e2c1', protocols: '#f3bd70', cdn: '#5bbdf2', security: '#ef88b7' };
 const defaultSections = [
-  { id: 'remnawave', groupId: 'manuals', title: 'Remnawave', icon: 'book', manualIds: [] },
-  { id: 'protocols', groupId: 'manuals', title: 'Протоколы', icon: 'network', manualIds: [] },
-  { id: 'cdn', groupId: 'manuals', title: 'CDN', icon: 'cloud', manualIds: [] },
-  { id: 'security', groupId: 'manuals', title: 'Безопасность', icon: 'shield', manualIds: [] }
+  { id: 'remnawave', groupId: 'manuals', title: 'Remnawave', icon: 'book', color: defaultSectionColors.remnawave, manualIds: [] },
+  { id: 'protocols', groupId: 'manuals', title: 'Протоколы', icon: 'network', color: defaultSectionColors.protocols, manualIds: [] },
+  { id: 'cdn', groupId: 'manuals', title: 'CDN', icon: 'cloud', color: defaultSectionColors.cdn, manualIds: [] },
+  { id: 'security', groupId: 'manuals', title: 'Безопасность', icon: 'shield', color: defaultSectionColors.security, manualIds: [] }
 ];
 const iconChoices = [['book','Книга'],['network','Сеть'],['cloud','Облако'],['shield','Щит'],['globe','Глобус'],['terminal','Терминал'],['spark','Искра'],['heading','Заголовок'],['text','Текст'],['list','Список'],['code','Код'],['alert','Внимание'],['image','Изображение'],['panel','Панель'],['chevron','Стрелка']];
 let navigationGroups = structuredClone(defaultGroups);
@@ -116,6 +117,7 @@ function sortedSectionManuals(section, { publishedOnly = true } = {}) {
   const rank = new Map((section.manualIds || []).map((id, index) => [id, index]));
   return rows.sort((a, b) => (rank.get(a.id) ?? 1e6) - (rank.get(b.id) ?? 1e6) || a.title.localeCompare(b.title, 'ru'));
 }
+function sectionColor(section) { return /^#[\da-f]{6}$/i.test(section.color || '') ? section.color : defaultSectionColors[section.id] || defaultSectionColors.remnawave; }
 function renderManualLinks() {
   const nav = document.querySelector('#manual-nav'); nav.replaceChildren(); categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
   navigationGroups.forEach((group, groupIndex) => {
@@ -124,6 +126,7 @@ function renderManualLinks() {
     const sectionsWrap = make('div', 'nav-group-sections');
     navigationSections.filter((section) => section.groupId === group.id).forEach((data, sectionIndex) => {
       const section = make('section', `nav-section section-${['remna','protocols','cdn','security'][sectionIndex % 4]}`); section.dataset.section = data.id;
+      const color = sectionColor(data); section.style.setProperty('--accent', color); section.style.setProperty('--border', `color-mix(in srgb, ${color} 55%, #172033)`); section.style.setProperty('--wash', `color-mix(in srgb, ${color} 18%, #171c2c)`); section.style.setProperty('--icon-bg', `color-mix(in srgb, ${color} 20%, #152338)`);
       const toggle = make('button', 'section-toggle'); toggle.type = 'button'; toggle.setAttribute('aria-expanded', String(openSections.has(data.id)));
       const icon = make('span', 'section-icon'); icon.append(iconElement(data.icon)); const name = make('span', 'section-name', data.title);
       const rows = sortedSectionManuals(data); const count = make('span', 'section-count', String(rows.length)); const chevron = iconElement('chevron', 'icon chevron');
@@ -185,6 +188,13 @@ const pageDescription = document.querySelector('#page-description');
 const editorCanvas = document.querySelector('#editor-canvas');
 const blockProperties = document.querySelector('#block-properties');
 const editorMessage = document.querySelector('#editor-message');
+function setAdminMode(mode) {
+  const manualMode = mode !== 'navigation';
+  document.querySelector('#manual-workspace').hidden = !manualMode;
+  document.querySelector('#navigation-workspace').hidden = manualMode;
+  document.querySelectorAll('[data-admin-mode]').forEach((button) => button.setAttribute('aria-selected', String(button.dataset.adminMode === (manualMode ? 'manuals' : 'navigation'))));
+}
+document.querySelector('.admin-mode-switch').addEventListener('click', (event) => { const button = event.target.closest('[data-admin-mode]'); if (button) setAdminMode(button.dataset.adminMode); });
 function defaultBlock(type) {
   const common = { id: crypto.randomUUID(), type };
   if (type === 'heading') return { ...common, title: 'Новый раздел', level: '2' };
@@ -287,7 +297,8 @@ function renderSidebarManager() {
       const fields = make('div', 'manager-section-fields'); const nameLabel = make('label', 'inspector-field', 'Название подраздела'); const name = document.createElement('input'); name.maxLength = 40; name.value = section.title; name.dataset.sectionTitle = ''; nameLabel.append(name);
       const groupLabel = make('label', 'inspector-field', 'Группа'); const sectionGroup = document.createElement('select'); sectionGroup.dataset.sectionGroup = ''; navigationGroups.forEach((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.title; sectionGroup.append(option); }); sectionGroup.value = section.groupId; groupLabel.append(sectionGroup);
       const iconLabel = make('label', 'inspector-field', 'Иконка'); const iconSelect = document.createElement('select'); iconSelect.dataset.sectionIcon = ''; fillIconOptions(iconSelect, section.icon); iconLabel.append(iconSelect);
-      const preview = make('span', 'manager-icon-preview'); preview.append(iconElement(section.icon)); fields.append(nameLabel, groupLabel, iconLabel, preview); card.append(fields);
+      const colorLabel = make('label', 'inspector-field color-field', 'Цвет подраздела'); const colorInput = document.createElement('input'); colorInput.type = 'color'; colorInput.value = sectionColor(section); colorInput.dataset.sectionColor = ''; colorLabel.append(colorInput);
+      const preview = make('span', 'manager-icon-preview'); preview.style.color = sectionColor(section); preview.style.borderColor = sectionColor(section); preview.append(iconElement(section.icon)); fields.append(nameLabel, groupLabel, iconLabel, colorLabel, preview); card.append(fields);
       const manualsList = make('div', 'manager-manuals'); manualsList.append(make('small', 'manager-list-title', `МАНУАЛЫ · ${manuals.filter((item) => item.category === section.id).length}`));
       const rows = sortedSectionManuals(section, { publishedOnly: false });
       if (!rows.length) manualsList.append(make('p', 'manager-empty', 'В подразделе пока нет мануалов.'));
@@ -335,20 +346,21 @@ document.querySelector('#sidebar-manager-groups').addEventListener('change', asy
   if (event.target.matches('[data-section-group]')) { const groupId = event.target.value; const nextGroup = navigationGroups.find((item) => item.id === groupId); if (!nextGroup || navigationSections.some((item) => item.id !== section.id && item.groupId === groupId && item.title.toLocaleLowerCase('ru') === section.title.toLocaleLowerCase('ru'))) { event.target.value = section.groupId; document.querySelector('#navigation-message').textContent = 'В этой группе уже есть подраздел с таким названием.'; return; } section.groupId = groupId; await persistNavigation('Подраздел перемещён в другую группу.'); return; }
   if (event.target.matches('[data-section-title]')) { const title = event.target.value.trim(); if (!title || navigationSections.some((item) => item.id !== section.id && item.groupId === section.groupId && item.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { event.target.value = section.title; document.querySelector('#navigation-message').textContent = 'Укажи уникальное название подраздела в этой группе.'; return; } section.title = title; }
   if (event.target.matches('[data-section-icon]')) section.icon = event.target.value;
+  if (event.target.matches('[data-section-color]')) section.color = event.target.value;
   await persistNavigation('Раздел обновлён.');
 });
 document.querySelector('#new-group-form').addEventListener('submit', async (event) => {
   event.preventDefault(); const title = document.querySelector('#new-group-title').value.trim(); if (!title) return;
   if (navigationGroups.some((group) => group.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { document.querySelector('#navigation-message').textContent = 'Такая группа уже существует.'; return; }
   navigationGroups.push({ id: `group-${crypto.randomUUID().slice(0, 8)}`, title, icon: document.querySelector('#new-group-icon').value || 'book' });
-  document.querySelector('#new-group-title').value = ''; await persistNavigation('Новая группа добавлена. Теперь создай для неё подразделы.'); document.querySelector('#sidebar-manager').open = true;
+  document.querySelector('#new-group-title').value = ''; await persistNavigation('Новая группа добавлена. Теперь создай для неё подразделы.');
 });
 document.querySelector('#new-section-form').addEventListener('submit', async (event) => {
   event.preventDefault(); const title = document.querySelector('#new-section-title').value.trim(); if (!title) return;
   const groupId = document.querySelector('#new-section-group').value; const groupSections = navigationSections.filter((section) => section.groupId === groupId);
   if (groupSections.some((section) => section.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { document.querySelector('#navigation-message').textContent = 'Такой подраздел уже есть в выбранной группе.'; return; }
   navigationSections.push({ id: `section-${crypto.randomUUID().slice(0, 8)}`, groupId, title, icon: document.querySelector('#new-section-icon').value || 'book', manualIds: [] });
-  document.querySelector('#new-section-title').value = ''; await persistNavigation('Новый подраздел добавлен.'); document.querySelector('#sidebar-manager').open = true;
+  document.querySelector('#new-section-title').value = ''; await persistNavigation('Новый подраздел добавлен.');
 });
 async function loadAdminManuals() { manuals = await api('/api/admin/manuals'); renderPicker(); renderManualLinks(); }
 async function migrateBrowserDrafts() {
