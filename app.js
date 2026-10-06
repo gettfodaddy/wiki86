@@ -120,9 +120,9 @@ function renderPublishedManual(manual) {
     if (block.type === 'heading') { element = make(block.level === '3' ? 'h3' : 'h2', 'published-heading', block.title || 'Заголовок'); }
     else if (block.type === 'text') { element = make('p', 'published-text', block.text || ''); }
     else if (block.type === 'step') { element = make('section', 'published-step'); element.append(make('span', 'step-number', String(index + 1).padStart(2, '0')), make('div', '', '')); element.lastChild.append(make('h2', '', block.title || `Шаг ${index + 1}`), make('p', '', block.text || '')); }
-    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', 'Копировать'); copy.type = 'button'; copy.addEventListener('click', async () => { await navigator.clipboard.writeText(block.code || ''); copy.textContent = 'Скопировано'; setTimeout(() => copy.textContent = 'Копировать', 1100); }); top.append(copy); const pre = make('pre'); pre.append(make('code', '', block.code || '')); element.append(top, pre); }
-    else if (block.type === 'note') { element = make('aside', 'published-note'); element.append(make('strong', '', block.title || 'Примечание'), make('p', '', block.text || '')); }
-    else if (block.type === 'image') { element = make('figure', 'published-image'); const img = document.createElement('img'); img.src = block.src || ''; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); if (block.alt) element.append(make('figcaption', '', block.alt)); }
+    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(block.code || ''); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(make('code', '', block.code || '')); element.append(top, pre); }
+    else if (block.type === 'note') { element = make('aside', `published-note note-${block.variant || 'warning'}`); element.append(make('span', 'note-mark', block.variant === 'success' ? '✓' : block.variant === 'info' ? 'i' : '!'), make('div', 'note-content', '')); element.lastChild.append(make('strong', '', block.title || 'Примечание'), make('p', '', block.text || '')); }
+    else if (block.type === 'image') { element = make('figure', 'published-image'); const src = /^https:\/\//i.test(block.src || '') && !/example\.com/i.test(block.src) ? block.src : ''; if (src) { const img = document.createElement('img'); img.src = src; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); } else element.append(make('div', 'image-placeholder', 'Добавьте HTTPS-ссылку на изображение в редакторе')); if (block.alt) element.append(make('figcaption', '', block.alt)); }
     else element = make('hr', 'published-divider');
     element.dataset.blockId = block.id; content.append(element);
   });
@@ -146,8 +146,8 @@ function defaultBlock(type) {
   if (type === 'text') return { ...common, text: 'Добавьте пояснение к инструкции.' };
   if (type === 'step') return { ...common, title: 'Новый шаг', text: 'Опишите действие и ожидаемый результат.' };
   if (type === 'code') return { ...common, language: 'bash', code: 'команда' };
-  if (type === 'note') return { ...common, title: 'Важно', text: 'Добавьте важное примечание.' };
-  if (type === 'image') return { ...common, src: 'https://example.com/image.png', alt: 'Описание изображения' };
+  if (type === 'note') return { ...common, title: 'Важно', text: 'Добавьте важное примечание.', variant: 'warning' };
+  if (type === 'image') return { ...common, src: '', alt: 'Описание изображения' };
   return common;
 }
 function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
@@ -159,14 +159,14 @@ function refreshEditorCanvas() {
   data.blocks.forEach((block, index) => {
     const card = make('article', `editor-block editor-block-${block.type}${selectedBlockId === block.id ? ' selected' : ''}`); card.dataset.blockId = block.id;
     const tools = make('div', 'editor-block-tools'); tools.append(make('span', 'editor-block-label', `${String(index + 1).padStart(2, '0')} · ${blockNames[block.type]}`));
-    [['↑','up'],['↓','down'],['✎','edit'],['×','delete']].forEach(([label, action]) => { const button = make('button', 'block-action', label); button.type = 'button'; button.dataset.blockAction = action; button.title = action; tools.append(button); });
+    [['up','<path d="m6 14 6-6 6 6"/>'],['down','<path d="m6 10 6 6 6-6"/>'],['edit','<path d="m14 5 5 5M4 20l4.2-.9L19 8.3 15.7 5 4.9 15.8 4 20Z"/>'],['delete','<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>']].forEach(([action, path]) => { const button = make('button', 'block-action', ''); button.type = 'button'; button.dataset.blockAction = action; button.title = ({up:'Переместить выше',down:'Переместить ниже',edit:'Редактировать',delete:'Удалить'})[action]; button.setAttribute('aria-label', button.title); button.innerHTML = `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24">${path}</svg>`; button.disabled = (action === 'up' && index === 0) || (action === 'down' && index === data.blocks.length - 1); tools.append(button); });
     card.append(tools);
     if (block.type === 'heading') card.append(make(block.level === '3' ? 'h3' : 'h2', '', block.title || 'Заголовок'));
     if (block.type === 'text') card.append(make('p', '', block.text || 'Текстовый блок'));
     if (block.type === 'step') { card.append(make('h3', '', block.title || `Шаг ${index + 1}`), make('p', '', block.text || 'Описание шага')); }
     if (block.type === 'code') { card.append(make('small', 'code-language', block.language || 'TEXT')); const pre = make('pre'); pre.append(make('code', '', block.code || '')); card.append(pre); }
     if (block.type === 'note') card.append(make('strong', '', block.title || 'Примечание'), make('p', '', block.text || ''));
-    if (block.type === 'image') { const img = document.createElement('img'); img.src = block.src || ''; img.alt = block.alt || ''; img.className = 'editor-image-preview'; card.append(img, make('p', '', block.alt || 'Изображение')); }
+    if (block.type === 'image') { if (/^https:\/\//i.test(block.src || '') && !/example\.com/i.test(block.src)) { const img = document.createElement('img'); img.src = block.src; img.alt = block.alt || ''; img.className = 'editor-image-preview'; card.append(img); } else card.append(make('div', 'image-placeholder', 'Вставь HTTPS-ссылку на изображение в свойствах блока')); card.append(make('p', '', block.alt || 'Изображение')); }
     if (block.type === 'divider') card.append(make('hr'));
     card.addEventListener('click', (event) => { if (event.target.closest('button')) return; selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); });
     editorCanvas.append(card);
@@ -191,7 +191,8 @@ function renderBlockInspector() {
   if (block.type === 'heading') { const selectLabel = make('label', 'inspector-field', 'Уровень заголовка'); const select = document.createElement('select'); select.dataset.blockField = 'level'; [['2','H2'],['3','H3']].forEach(([value,label]) => { const opt = document.createElement('option'); opt.value = value; opt.textContent = label; select.append(opt); }); select.value = block.level || '2'; selectLabel.append(select); blockProperties.append(selectLabel); }
   if (block.type === 'code') { blockProperties.append(inputControl('Язык блока', 'language', block.language, { placeholder: 'bash' }), inputControl('Команды и код', 'code', block.code, { multiline: true })); }
   if (block.type === 'image') blockProperties.append(inputControl('HTTPS-ссылка на изображение', 'src', block.src), inputControl('Alt-текст', 'alt', block.alt));
-  blockProperties.querySelectorAll('[data-block-field]').forEach((field) => field.addEventListener('input', () => { block[field.dataset.blockField] = field.value; refreshEditorCanvas(); }));
+  if (block.type === 'note') { const label = make('label', 'inspector-field', 'Вид примечания'); const select = document.createElement('select'); select.dataset.blockField = 'variant'; [['warning','Важно'],['info','Информация'],['success','Успех']].forEach(([value,title]) => { const option = document.createElement('option'); option.value=value; option.textContent=title; select.append(option); }); select.value=block.variant||'warning'; label.append(select); blockProperties.append(label); }
+  blockProperties.querySelectorAll('[data-block-field]').forEach((field) => { const update = () => { block[field.dataset.blockField] = field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
 }
 function resetEditor() {
   currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = 'cdn'; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#manual-picker').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
@@ -246,12 +247,12 @@ document.querySelectorAll('[data-add-block]').forEach((button) => button.addEven
   const block = defaultBlock(button.dataset.addBlock); currentManual.blocks.push(block); selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(`${blockNames[block.type]} добавлен. Не забудь сохранить.`);
 }));
 editorCanvas.addEventListener('click', (event) => {
-  const actionButton = event.target.closest('[data-block-action]'); if (!actionButton) return;
-  const card = actionButton.closest('[data-block-id]'); const index = currentManual?.blocks.findIndex((block) => block.id === card.dataset.blockId); if (index < 0) return;
+  const actionButton = event.target.closest('[data-block-action]'); if (!actionButton || actionButton.disabled || !currentManual) return;
+  const card = actionButton.closest('[data-block-id]'); const index = currentManual.blocks.findIndex((block) => block.id === card.dataset.blockId); if (index < 0) return;
   const action = actionButton.dataset.blockAction;
   if (action === 'delete') { currentManual.blocks.splice(index, 1); selectedBlockId = null; }
-  else if (action === 'up' && index > 0) [currentManual.blocks[index - 1], currentManual.blocks[index]] = [currentManual.blocks[index], currentManual.blocks[index - 1]];
-  else if (action === 'down' && index < currentManual.blocks.length - 1) [currentManual.blocks[index + 1], currentManual.blocks[index]] = [currentManual.blocks[index], currentManual.blocks[index + 1]];
+  else if (action === 'up' && index > 0) { const [block] = currentManual.blocks.splice(index, 1); currentManual.blocks.splice(index - 1, 0, block); selectedBlockId = block.id; }
+  else if (action === 'down' && index < currentManual.blocks.length - 1) { const [block] = currentManual.blocks.splice(index, 1); currentManual.blocks.splice(index + 1, 0, block); selectedBlockId = block.id; }
   else { selectedBlockId = card.dataset.blockId; }
   renderBlockInspector(); refreshEditorCanvas();
 });

@@ -61,7 +61,7 @@ function safeManual(input, previous = {}) {
   const blocks = input.blocks.map((raw) => {
     if (!raw || !blockTypes.has(raw.type)) throw new Error('Unknown block type.');
     const block = { id: String(raw.id || randomUUID()).slice(0, 60), type: raw.type };
-    for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level']) {
+    for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant']) {
       if (raw[key] !== undefined) block[key] = String(raw[key]).slice(0, key === 'code' || key === 'text' ? 30000 : 500);
     }
     if (block.type === 'image' && block.src && !/^https:\/\//i.test(block.src)) throw new Error('Images must use HTTPS URLs.');
