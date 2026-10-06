@@ -2,13 +2,15 @@ const sidebar = document.querySelector('#sidebar');
 const scrim = document.querySelector('#mobile-scrim');
 const searchBox = document.querySelector('.search-box');
 const searchInput = document.querySelector('#search');
+const defaultGroups = [{ id: 'manuals', title: 'МАНУАЛЫ', icon: 'book' }];
 const defaultSections = [
-  { id: 'remnawave', title: 'Remnawave', icon: 'book', manualIds: [] },
-  { id: 'protocols', title: 'Протоколы', icon: 'network', manualIds: [] },
-  { id: 'cdn', title: 'CDN', icon: 'cloud', manualIds: [] },
-  { id: 'security', title: 'Безопасность', icon: 'shield', manualIds: [] }
+  { id: 'remnawave', groupId: 'manuals', title: 'Remnawave', icon: 'book', manualIds: [] },
+  { id: 'protocols', groupId: 'manuals', title: 'Протоколы', icon: 'network', manualIds: [] },
+  { id: 'cdn', groupId: 'manuals', title: 'CDN', icon: 'cloud', manualIds: [] },
+  { id: 'security', groupId: 'manuals', title: 'Безопасность', icon: 'shield', manualIds: [] }
 ];
 const iconChoices = [['book','Книга'],['network','Сеть'],['cloud','Облако'],['shield','Щит'],['globe','Глобус'],['terminal','Терминал'],['spark','Искра'],['heading','Заголовок'],['text','Текст'],['list','Список'],['code','Код'],['alert','Внимание'],['image','Изображение'],['panel','Панель'],['chevron','Стрелка']];
+let navigationGroups = structuredClone(defaultGroups);
 let navigationSections = structuredClone(defaultSections);
 let categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
 const openSections = new Set();
@@ -34,6 +36,8 @@ document.querySelector('#sidebar-toggle').addEventListener('click', () => {
   if (isMobileLayout()) { const open = sidebar.classList.toggle('open'); scrim.classList.toggle('show', open); document.querySelector('#sidebar-toggle').setAttribute('aria-expanded', String(open)); }
 });
 scrim.addEventListener('click', closeMobileSidebar);
+let forceNewManual = false;
+document.querySelector('#sidebar-add').addEventListener('click', (event) => { event.preventDefault(); event.stopPropagation(); forceNewManual = true; navigate('/admin'); if (adminAuthenticated) { resetEditor(); forceNewManual = false; } });
 function normalizePath(path) { return path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path; }
 function currentRoute() {
   if (location.protocol === 'file:') { const hash = location.hash.slice(1); if (hash === 'selfsteal' || hash === 'manual/selfsteal') return '/manual/selfsteal'; if (hash === 'admin') return '/admin'; if (hash.startsWith('manual/')) return `/${hash}`; return '/'; }
@@ -43,6 +47,7 @@ function navigate(path) {
   if (location.protocol === 'file:') { location.hash = path === '/' ? 'home' : path.slice(1); renderRoute(path); return; }
   if (normalizePath(location.pathname) !== normalizePath(path)) history.pushState({}, '', path);
   renderRoute(path);
+  if (normalizePath(path) === '/admin' && !adminAuthenticated) activateAdmin().catch((error) => setEditorMessage(error.message, 'error'));
 }
 function openCategory(category) {
   const section = document.querySelector(`[data-section="${CSS.escape(category)}"]`);
@@ -115,21 +120,27 @@ function sortedSectionManuals(section, { publishedOnly = true } = {}) {
 }
 function renderManualLinks() {
   const nav = document.querySelector('#manual-nav'); nav.replaceChildren(); categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
-  navigationSections.forEach((data, sectionIndex) => {
-    const section = make('section', `nav-section section-${['remna','protocols','cdn','security'][sectionIndex % 4]}`); section.dataset.section = data.id;
-    const toggle = make('button', 'section-toggle'); toggle.type = 'button'; toggle.setAttribute('aria-expanded', String(openSections.has(data.id)));
-    const icon = make('span', 'section-icon'); icon.append(iconElement(data.icon)); const name = make('span', 'section-name', data.title);
-    const rows = sortedSectionManuals(data); const count = make('span', 'section-count', String(rows.length)); const chevron = iconElement('chevron', 'icon chevron');
-    toggle.append(icon, name, count, chevron); toggle.title = data.title;
-    const items = make('div', 'section-items'); items.hidden = !openSections.has(data.id);
-    const list = make('div', 'manual-list');
-    rows.forEach((manual) => {
-      const link = document.createElement('a'); link.className = 'manual-link'; link.href = manual.path; link.dataset.route = manual.path; link.title = manual.title;
-      const badge = make('span', 'item-icon'); badge.append(iconElement(manual.path === '/manual/selfsteal' ? 'globe' : 'book'));
-      link.append(badge, make('span', '', manual.title), make('i')); list.append(link);
+  navigationGroups.forEach((group, groupIndex) => {
+    const groupNode = make('section', 'nav-group'); groupNode.dataset.group = group.id;
+    const heading = make('div', 'sidebar-label'); const groupIcon = make('span', 'group-icon'); groupIcon.append(iconElement(group.icon)); heading.append(groupIcon, make('span', 'group-title', group.title), make('span', 'label-line')); groupNode.append(heading);
+    const sectionsWrap = make('div', 'nav-group-sections');
+    navigationSections.filter((section) => section.groupId === group.id).forEach((data, sectionIndex) => {
+      const section = make('section', `nav-section section-${['remna','protocols','cdn','security'][sectionIndex % 4]}`); section.dataset.section = data.id;
+      const toggle = make('button', 'section-toggle'); toggle.type = 'button'; toggle.setAttribute('aria-expanded', String(openSections.has(data.id)));
+      const icon = make('span', 'section-icon'); icon.append(iconElement(data.icon)); const name = make('span', 'section-name', data.title);
+      const rows = sortedSectionManuals(data); const count = make('span', 'section-count', String(rows.length)); const chevron = iconElement('chevron', 'icon chevron');
+      toggle.append(icon, name, count, chevron); toggle.title = data.title;
+      const items = make('div', 'section-items'); items.hidden = !openSections.has(data.id);
+      const list = make('div', 'manual-list');
+      rows.forEach((manual) => {
+        const link = document.createElement('a'); link.className = 'manual-link'; link.href = manual.path; link.dataset.route = manual.path; link.title = manual.title;
+        const badge = make('span', 'item-icon'); badge.append(iconElement(manual.path === '/manual/selfsteal' ? 'globe' : 'book'));
+        link.append(badge, make('span', '', manual.title), make('i')); list.append(link);
+      });
+      const empty = make('p', 'empty-category', 'Мануалы скоро появятся'); empty.hidden = rows.length > 0;
+      items.append(list, empty); section.append(toggle, items); sectionsWrap.append(section);
     });
-    const empty = make('p', 'empty-category', 'Мануалы скоро появятся'); empty.hidden = rows.length > 0;
-    items.append(list, empty); section.append(toggle, items); nav.append(section);
+    groupNode.append(sectionsWrap); nav.append(groupNode);
   });
   renderSidebarManager();
 }
@@ -250,39 +261,67 @@ function fillIconOptions(select, selected = 'book') {
 }
 function renderCategoryOptions(selected = pageCategory.value) {
   pageCategory.replaceChildren();
-  navigationSections.forEach((section) => { const option = document.createElement('option'); option.value = section.id; option.textContent = section.title; pageCategory.append(option); });
+  navigationGroups.forEach((group) => {
+    const sections = navigationSections.filter((section) => section.groupId === group.id); if (!sections.length) return;
+    const optgroup = document.createElement('optgroup'); optgroup.label = group.title;
+    sections.forEach((section) => { const option = document.createElement('option'); option.value = section.id; option.textContent = section.title; optgroup.append(option); }); pageCategory.append(optgroup);
+  });
   pageCategory.value = navigationSections.some((section) => section.id === selected) ? selected : navigationSections[0]?.id || '';
 }
 function renderSidebarManager() {
-  const root = document.querySelector('#sidebar-manager-sections'); if (!root) return;
+  const root = document.querySelector('#sidebar-manager-groups'); if (!root) return;
   root.replaceChildren();
-  navigationSections.forEach((section, sectionIndex) => {
-    const card = make('section', 'manager-section'); card.dataset.sectionId = section.id;
-    const heading = make('div', 'manager-section-heading'); heading.append(make('span', 'manager-order', String(sectionIndex + 1).padStart(2, '0')), make('strong', '', section.title));
-    [['↑','up'],['↓','down']].forEach(([label, direction]) => { const button = make('button', 'manager-move', label); button.type = 'button'; button.title = `${direction === 'up' ? 'Выше' : 'Ниже'}`; button.dataset.moveSection = direction; button.disabled = (direction === 'up' && sectionIndex === 0) || (direction === 'down' && sectionIndex === navigationSections.length - 1); heading.append(button); });
-    const remove = make('button', 'manager-remove', 'Удалить'); remove.type = 'button'; remove.dataset.deleteSection = ''; remove.disabled = navigationSections.length === 1 || manuals.some((manual) => manual.category === section.id); remove.title = remove.disabled ? 'Сначала перемести мануалы из раздела' : 'Удалить пустой раздел'; heading.append(remove); card.append(heading);
-    const fields = make('div', 'manager-section-fields'); const nameLabel = make('label', 'inspector-field', 'Название раздела'); const name = document.createElement('input'); name.maxLength = 40; name.value = section.title; name.dataset.sectionTitle = ''; nameLabel.append(name);
-    const iconLabel = make('label', 'inspector-field', 'Иконка из библиотеки'); const iconSelect = document.createElement('select'); iconSelect.dataset.sectionIcon = ''; fillIconOptions(iconSelect, section.icon); iconLabel.append(iconSelect);
-    const preview = make('span', 'manager-icon-preview'); preview.append(iconElement(section.icon)); fields.append(nameLabel, iconLabel, preview); card.append(fields);
-    const manualsList = make('div', 'manager-manuals'); manualsList.append(make('small', 'manager-list-title', `МАНУАЛЫ · ${manuals.filter((item) => item.category === section.id).length}`));
-    const rows = sortedSectionManuals(section, { publishedOnly: false });
-    if (!rows.length) manualsList.append(make('p', 'manager-empty', 'В разделе пока нет мануалов.'));
-    rows.forEach((manual, index) => { const row = make('div', 'manager-manual-row'); row.dataset.manualId = manual.id; row.append(make('span', '', manual.title), make('small', '', manual.status === 'published' ? 'опубликован' : 'черновик'));
-      [['↑','up'],['↓','down']].forEach(([label, direction]) => { const button = make('button', 'manager-move', label); button.type = 'button'; button.dataset.moveManual = direction; button.disabled = (direction === 'up' && index === 0) || (direction === 'down' && index === rows.length - 1); button.title = `${direction === 'up' ? 'Переместить выше' : 'Переместить ниже'}`; row.append(button); }); manualsList.append(row); });
-    card.append(manualsList); root.append(card);
+  navigationGroups.forEach((group, groupIndex) => {
+    const groupCard = make('section', 'manager-group'); groupCard.dataset.groupId = group.id;
+    const groupHead = make('div', 'manager-section-heading'); groupHead.append(make('span', 'manager-order', String(groupIndex + 1).padStart(2, '0')), make('strong', '', group.title));
+    [['↑','up'],['↓','down']].forEach(([label, direction]) => { const button = make('button', 'manager-move', label); button.type = 'button'; button.title = direction === 'up' ? 'Поднять группу' : 'Опустить группу'; button.dataset.moveGroup = direction; button.disabled = (direction === 'up' && groupIndex === 0) || (direction === 'down' && groupIndex === navigationGroups.length - 1); groupHead.append(button); });
+    const delGroup = make('button', 'manager-remove', 'Удалить'); delGroup.type = 'button'; delGroup.dataset.deleteGroup = ''; delGroup.disabled = navigationGroups.length === 1 || navigationSections.some((section) => section.groupId === group.id); delGroup.title = delGroup.disabled ? 'Сначала перемести или удали подразделы' : 'Удалить пустую группу'; groupHead.append(delGroup); groupCard.append(groupHead);
+    const groupFields = make('div', 'manager-section-fields manager-group-fields'); const groupNameLabel = make('label', 'inspector-field', 'Название группы'); const groupName = document.createElement('input'); groupName.maxLength = 40; groupName.value = group.title; groupName.dataset.groupTitle = ''; groupNameLabel.append(groupName);
+    const groupIconLabel = make('label', 'inspector-field', 'Иконка'); const groupIconSelect = document.createElement('select'); groupIconSelect.dataset.groupIcon = ''; fillIconOptions(groupIconSelect, group.icon); groupIconLabel.append(groupIconSelect);
+    const groupPreview = make('span', 'manager-icon-preview'); groupPreview.append(iconElement(group.icon)); groupFields.append(groupNameLabel, groupIconLabel, groupPreview); groupCard.append(groupFields);
+    const sectionWrap = make('div', 'manager-subsections');
+    const groupSections = navigationSections.filter((section) => section.groupId === group.id);
+    groupSections.forEach((section, sectionIndex) => {
+      const card = make('section', 'manager-section'); card.dataset.sectionId = section.id; card.dataset.groupId = group.id;
+      const heading = make('div', 'manager-section-heading'); heading.append(make('span', 'manager-order', String(sectionIndex + 1).padStart(2, '0')), make('strong', '', section.title));
+      [['↑','up'],['↓','down']].forEach(([label, direction]) => { const button = make('button', 'manager-move', label); button.type = 'button'; button.title = direction === 'up' ? 'Поднять подраздел' : 'Опустить подраздел'; button.dataset.moveSection = direction; button.disabled = (direction === 'up' && sectionIndex === 0) || (direction === 'down' && sectionIndex === groupSections.length - 1); heading.append(button); });
+      const remove = make('button', 'manager-remove', 'Удалить'); remove.type = 'button'; remove.dataset.deleteSection = ''; remove.disabled = navigationSections.length === 1 || manuals.some((manual) => manual.category === section.id); remove.title = remove.disabled ? 'Оставь один подраздел и сначала перемести мануалы' : 'Удалить подраздел'; heading.append(remove); card.append(heading);
+      const fields = make('div', 'manager-section-fields'); const nameLabel = make('label', 'inspector-field', 'Название подраздела'); const name = document.createElement('input'); name.maxLength = 40; name.value = section.title; name.dataset.sectionTitle = ''; nameLabel.append(name);
+      const groupLabel = make('label', 'inspector-field', 'Группа'); const sectionGroup = document.createElement('select'); sectionGroup.dataset.sectionGroup = ''; navigationGroups.forEach((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.title; sectionGroup.append(option); }); sectionGroup.value = section.groupId; groupLabel.append(sectionGroup);
+      const iconLabel = make('label', 'inspector-field', 'Иконка'); const iconSelect = document.createElement('select'); iconSelect.dataset.sectionIcon = ''; fillIconOptions(iconSelect, section.icon); iconLabel.append(iconSelect);
+      const preview = make('span', 'manager-icon-preview'); preview.append(iconElement(section.icon)); fields.append(nameLabel, groupLabel, iconLabel, preview); card.append(fields);
+      const manualsList = make('div', 'manager-manuals'); manualsList.append(make('small', 'manager-list-title', `МАНУАЛЫ · ${manuals.filter((item) => item.category === section.id).length}`));
+      const rows = sortedSectionManuals(section, { publishedOnly: false });
+      if (!rows.length) manualsList.append(make('p', 'manager-empty', 'В подразделе пока нет мануалов.'));
+      rows.forEach((manual, index) => { const row = make('div', 'manager-manual-row'); row.dataset.manualId = manual.id; row.append(make('span', '', manual.title), make('small', '', manual.status === 'published' ? 'опубликован' : 'черновик'));
+        [['↑','up'],['↓','down']].forEach(([label, direction]) => { const button = make('button', 'manager-move', label); button.type = 'button'; button.dataset.moveManual = direction; button.disabled = (direction === 'up' && index === 0) || (direction === 'down' && index === rows.length - 1); button.title = `${direction === 'up' ? 'Переместить выше' : 'Переместить ниже'}`; row.append(button); }); manualsList.append(row); });
+      card.append(manualsList); sectionWrap.append(card);
+    });
+    if (!groupSections.length) sectionWrap.append(make('p', 'manager-empty', 'Добавь подраздел в эту группу.'));
+    groupCard.append(sectionWrap); root.append(groupCard);
   });
+  const groupSelect = document.querySelector('#new-section-group'); groupSelect.replaceChildren(); navigationGroups.forEach((group) => { const option = document.createElement('option'); option.value = group.id; option.textContent = group.title; groupSelect.append(option); });
+  fillIconOptions(document.querySelector('#new-group-icon')); fillIconOptions(document.querySelector('#new-section-icon'));
   renderCategoryOptions(pageCategory.value);
 }
 async function persistNavigation(message = 'Настройки меню сохранены на сервере.') {
   const indicator = document.querySelector('#navigation-message'); indicator.textContent = 'Сохраняю меню…'; indicator.dataset.kind = '';
-  try { const saved = await api('/api/admin/navigation', { method: 'PUT', body: JSON.stringify({ sections: navigationSections }) }); navigationSections = saved.sections; renderManualLinks(); indicator.textContent = message; }
+  try { const saved = await api('/api/admin/navigation', { method: 'PUT', body: JSON.stringify({ groups: navigationGroups, sections: navigationSections }) }); navigationGroups = saved.groups; navigationSections = saved.sections; renderManualLinks(); indicator.textContent = message; }
   catch (error) { indicator.textContent = error.message; indicator.dataset.kind = 'error'; }
 }
-document.querySelector('#sidebar-manager-sections').addEventListener('click', async (event) => {
+document.querySelector('#sidebar-manager-groups').addEventListener('click', async (event) => {
+  const groupCard = event.target.closest('.manager-group');
+  if (groupCard) {
+    const groupIndex = navigationGroups.findIndex((group) => group.id === groupCard.dataset.groupId); const group = navigationGroups[groupIndex]; if (groupIndex < 0) return;
+    const moveGroup = event.target.closest('[data-move-group]');
+    if (moveGroup) { const nextIndex = groupIndex + (moveGroup.dataset.moveGroup === 'up' ? -1 : 1); if (nextIndex < 0 || nextIndex >= navigationGroups.length) return; [navigationGroups[groupIndex], navigationGroups[nextIndex]] = [navigationGroups[nextIndex], navigationGroups[groupIndex]]; await persistNavigation('Порядок групп обновлён.'); return; }
+    const deleteGroup = event.target.closest('[data-delete-group]');
+    if (deleteGroup && !deleteGroup.disabled) { navigationGroups.splice(groupIndex, 1); await persistNavigation('Пустая группа удалена.'); return; }
+  }
   const card = event.target.closest('.manager-section'); if (!card) return;
   const sectionIndex = navigationSections.findIndex((section) => section.id === card.dataset.sectionId); if (sectionIndex < 0) return;
   const section = navigationSections[sectionIndex]; const sectionMove = event.target.closest('[data-move-section]');
-  if (sectionMove) { const targetIndex = sectionIndex + (sectionMove.dataset.moveSection === 'up' ? -1 : 1); if (targetIndex < 0 || targetIndex >= navigationSections.length) return; [navigationSections[sectionIndex], navigationSections[targetIndex]] = [navigationSections[targetIndex], navigationSections[sectionIndex]]; await persistNavigation('Порядок разделов обновлён.'); return; }
+  if (sectionMove) { const siblings = navigationSections.filter((item) => item.groupId === section.groupId); const siblingIndex = siblings.findIndex((item) => item.id === section.id); const targetIndex = siblingIndex + (sectionMove.dataset.moveSection === 'up' ? -1 : 1); if (targetIndex < 0 || targetIndex >= siblings.length) return; const from = navigationSections.indexOf(siblings[siblingIndex]); const to = navigationSections.indexOf(siblings[targetIndex]); [navigationSections[from], navigationSections[to]] = [navigationSections[to], navigationSections[from]]; await persistNavigation('Порядок подразделов обновлён.'); return; }
   const remove = event.target.closest('[data-delete-section]');
   if (remove && !remove.disabled) { navigationSections.splice(sectionIndex, 1); await persistNavigation('Пустой раздел удалён.'); return; }
   const manualMove = event.target.closest('[data-move-manual]'); if (!manualMove) return;
@@ -290,18 +329,28 @@ document.querySelector('#sidebar-manager-sections').addEventListener('click', as
   if (index < 0 || targetIndex < 0 || targetIndex >= rows.length) return;
   const ids = rows.map((manual) => manual.id); [ids[index], ids[targetIndex]] = [ids[targetIndex], ids[index]]; section.manualIds = ids; await persistNavigation('Порядок мануалов обновлён.');
 });
-document.querySelector('#sidebar-manager-sections').addEventListener('change', async (event) => {
+document.querySelector('#sidebar-manager-groups').addEventListener('change', async (event) => {
+  const groupCard = event.target.closest('.manager-group'); const group = groupCard && navigationGroups.find((item) => item.id === groupCard.dataset.groupId);
+  if (group && event.target.matches('[data-group-title]')) { const title = event.target.value.trim(); if (!title || navigationGroups.some((item) => item.id !== group.id && item.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { event.target.value = group.title; document.querySelector('#navigation-message').textContent = 'Укажи уникальное название группы.'; return; } group.title = title; await persistNavigation('Группа обновлена.'); return; }
+  if (group && event.target.matches('[data-group-icon]')) { group.icon = event.target.value; await persistNavigation('Иконка группы обновлена.'); return; }
   const card = event.target.closest('.manager-section'); if (!card) return; const section = navigationSections.find((item) => item.id === card.dataset.sectionId); if (!section) return;
-  if (event.target.matches('[data-section-title]')) { const title = event.target.value.trim(); if (!title) { event.target.value = section.title; return; } if (navigationSections.some((item) => item.id !== section.id && item.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { event.target.value = section.title; document.querySelector('#navigation-message').textContent = 'Такое название раздела уже есть.'; return; } section.title = title; }
+  if (event.target.matches('[data-section-group]')) { const groupId = event.target.value; const nextGroup = navigationGroups.find((item) => item.id === groupId); if (!nextGroup || navigationSections.some((item) => item.id !== section.id && item.groupId === groupId && item.title.toLocaleLowerCase('ru') === section.title.toLocaleLowerCase('ru'))) { event.target.value = section.groupId; document.querySelector('#navigation-message').textContent = 'В этой группе уже есть подраздел с таким названием.'; return; } section.groupId = groupId; await persistNavigation('Подраздел перемещён в другую группу.'); return; }
+  if (event.target.matches('[data-section-title]')) { const title = event.target.value.trim(); if (!title || navigationSections.some((item) => item.id !== section.id && item.groupId === section.groupId && item.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { event.target.value = section.title; document.querySelector('#navigation-message').textContent = 'Укажи уникальное название подраздела в этой группе.'; return; } section.title = title; }
   if (event.target.matches('[data-section-icon]')) section.icon = event.target.value;
   await persistNavigation('Раздел обновлён.');
 });
-document.querySelector('#new-section-icon').addEventListener('focus', (event) => { if (!event.target.options.length) fillIconOptions(event.target); });
+document.querySelector('#new-group-form').addEventListener('submit', async (event) => {
+  event.preventDefault(); const title = document.querySelector('#new-group-title').value.trim(); if (!title) return;
+  if (navigationGroups.some((group) => group.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { document.querySelector('#navigation-message').textContent = 'Такая группа уже существует.'; return; }
+  navigationGroups.push({ id: `group-${crypto.randomUUID().slice(0, 8)}`, title, icon: document.querySelector('#new-group-icon').value || 'book' });
+  document.querySelector('#new-group-title').value = ''; await persistNavigation('Новая группа добавлена. Теперь создай для неё подразделы.'); document.querySelector('#sidebar-manager').open = true;
+});
 document.querySelector('#new-section-form').addEventListener('submit', async (event) => {
   event.preventDefault(); const title = document.querySelector('#new-section-title').value.trim(); if (!title) return;
-  if (navigationSections.some((section) => section.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { document.querySelector('#navigation-message').textContent = 'Такое название раздела уже есть.'; return; }
-  navigationSections.push({ id: `section-${crypto.randomUUID().slice(0, 8)}`, title, icon: document.querySelector('#new-section-icon').value || 'book', manualIds: [] });
-  document.querySelector('#new-section-title').value = ''; await persistNavigation('Новый раздел добавлен.'); document.querySelector('#sidebar-manager').open = true;
+  const groupId = document.querySelector('#new-section-group').value; const groupSections = navigationSections.filter((section) => section.groupId === groupId);
+  if (groupSections.some((section) => section.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { document.querySelector('#navigation-message').textContent = 'Такой подраздел уже есть в выбранной группе.'; return; }
+  navigationSections.push({ id: `section-${crypto.randomUUID().slice(0, 8)}`, groupId, title, icon: document.querySelector('#new-section-icon').value || 'book', manualIds: [] });
+  document.querySelector('#new-section-title').value = ''; await persistNavigation('Новый подраздел добавлен.'); document.querySelector('#sidebar-manager').open = true;
 });
 async function loadAdminManuals() { manuals = await api('/api/admin/manuals'); renderPicker(); renderManualLinks(); }
 async function migrateBrowserDrafts() {
@@ -323,7 +372,8 @@ async function activateAdmin() {
   await loadAdminManuals();
   await migrateBrowserDrafts();
   renderPicker();
-  if (currentManual?.id) hydrateEditor(manuals.find((manual) => manual.id === currentManual.id) || manuals[0]);
+  if (forceNewManual) { resetEditor(); forceNewManual = false; }
+  else if (currentManual?.id) hydrateEditor(manuals.find((manual) => manual.id === currentManual.id) || manuals[0]);
   else if (manuals.length) hydrateEditor(manuals[0]);
   else resetEditor();
 }
@@ -333,6 +383,7 @@ loginForm.addEventListener('submit', async (event) => {
   catch (error) { loginError.textContent = error.message; loginError.hidden = false; }
 });
 document.querySelector('#logout-button').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); adminAuthenticated = false; renderRoute('/admin'); });
+document.querySelector('.exit-constructor').addEventListener('click', () => { document.querySelector('#search').value = ''; });
 document.querySelector('#manual-picker').addEventListener('change', (event) => { if (!event.target.value) resetEditor(); else { const manual = manuals.find((item) => item.id === event.target.value); if (manual) hydrateEditor(manual); } });
 document.querySelector('#page-properties').addEventListener('input', () => { const slug = pageSlug.value.trim().toLowerCase(); pageSlug.value = slug; refreshEditorCanvas(); });
 pageTitle.addEventListener('input', () => { if (!pageSlug.dataset.edited) pageSlug.value = pageTitle.value.toLowerCase().replace(/[а-яё]/g, (char) => ({'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}[char])).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); refreshEditorCanvas(); });
@@ -379,6 +430,7 @@ function filterManuals(query) {
     section.hidden = Boolean(normalized) && !sectionName.includes(normalized) && count === 0;
     if (normalized && count) { section.querySelector('.section-toggle').setAttribute('aria-expanded', 'true'); section.querySelector('.section-items').hidden = false; }
   });
+  document.querySelectorAll('.nav-group').forEach((group) => { group.hidden = Boolean(normalized) && ![...group.querySelectorAll('.nav-section')].some((section) => !section.hidden); });
 }
 searchInput.addEventListener('input', () => filterManuals(searchInput.value));
 searchInput.addEventListener('focus', () => searchBox.classList.add('open'));
@@ -387,8 +439,8 @@ document.addEventListener('keydown', (event) => { if ((event.ctrlKey || event.me
 
 async function init() {
   try {
-    const navigation = await api('/api/navigation'); navigationSections = navigation.sections || structuredClone(defaultSections); categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
-    renderCategoryOptions(); fillIconOptions(document.querySelector('#new-section-icon'));
+    const navigation = await api('/api/navigation'); navigationGroups = navigation.groups || structuredClone(defaultGroups); navigationSections = (navigation.sections || structuredClone(defaultSections)).map((section) => ({ ...section, groupId: section.groupId || navigationGroups[0].id })); categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
+    renderCategoryOptions(); fillIconOptions(document.querySelector('#new-group-icon')); fillIconOptions(document.querySelector('#new-section-icon'));
     manuals = await api('/api/manuals'); renderManualLinks();
     const path = currentRoute();
     if (path.startsWith('/manual/')) {

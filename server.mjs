@@ -14,11 +14,12 @@ const adminPassword = process.env.WIKI86_ADMIN_PASSWORD || (isProduction ? '' : 
 const sessions = new Map();
 const failedLogins = new Map();
 const maxBodyBytes = 1_000_000;
+const defaultGroups = [{ id: 'manuals', title: 'МАНУАЛЫ', icon: 'book' }];
 const defaultNavigation = [
-  { id: 'remnawave', title: 'Remnawave', icon: 'book', manualIds: [] },
-  { id: 'protocols', title: 'Протоколы', icon: 'network', manualIds: [] },
-  { id: 'cdn', title: 'CDN', icon: 'cloud', manualIds: [] },
-  { id: 'security', title: 'Безопасность', icon: 'shield', manualIds: [] }
+  { id: 'remnawave', groupId: 'manuals', title: 'Remnawave', icon: 'book', manualIds: [] },
+  { id: 'protocols', groupId: 'manuals', title: 'Протоколы', icon: 'network', manualIds: [] },
+  { id: 'cdn', groupId: 'manuals', title: 'CDN', icon: 'cloud', manualIds: [] },
+  { id: 'security', groupId: 'manuals', title: 'Безопасность', icon: 'shield', manualIds: [] }
 ];
 const iconNames = new Set(['book','network','cloud','shield','globe','terminal','spark','heading','text','list','code','alert','image','panel']);
 let categories = new Set(defaultNavigation.map((section) => section.id));
@@ -28,7 +29,7 @@ const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf
 if (!adminPassword) throw new Error('Set WIKI86_ADMIN_PASSWORD before starting in production.');
 await mkdir(dataDir, { recursive: true });
 try { await stat(dataFile); } catch { await writeFile(dataFile, '[]\n', { mode: 0o600 }); }
-try { await stat(navigationFile); } catch { await writeFile(navigationFile, `${JSON.stringify({ sections: defaultNavigation }, null, 2)}\n`, { mode: 0o600 }); }
+try { await stat(navigationFile); } catch { await writeFile(navigationFile, `${JSON.stringify({ groups: defaultGroups, sections: defaultNavigation }, null, 2)}\n`, { mode: 0o600 }); }
 
 async function readManuals() {
   try { const list = JSON.parse(await readFile(dataFile, 'utf8')); return Array.isArray(list) ? list : []; }
@@ -41,7 +42,15 @@ async function writeManuals(list) {
 }
 async function readNavigation() {
   const saved = JSON.parse(await readFile(navigationFile, 'utf8'));
-  return { sections: Array.isArray(saved.sections) && saved.sections.length ? saved.sections : structuredClone(defaultNavigation) };
+  const sections = Array.isArray(saved.sections) && saved.sections.length ? saved.sections : structuredClone(defaultNavigation);
+  if (!Array.isArray(saved.groups) || !saved.groups.length) {
+    const migrated = { groups: structuredClone(defaultGroups), sections: sections.map((section) => ({ ...section, groupId: 'manuals' })) };
+    await writeNavigation(migrated);
+    return migrated;
+  }
+  const groups = saved.groups.map((group) => ({ id: String(group.id), title: String(group.title), icon: String(group.icon || 'book') }));
+  const groupIds = new Set(groups.map((group) => group.id));
+  return { groups, sections: sections.map((section) => ({ ...section, groupId: groupIds.has(section.groupId) ? section.groupId : groups[0].id })) };
 }
 async function writeNavigation(value) {
   const tmp = `${navigationFile}.${randomUUID()}.tmp`;
@@ -137,22 +146,32 @@ const server = createServer(async (req, res) => {
       if (pathname === '/api/admin/navigation' && req.method === 'GET') return send(res, 200, await readNavigation());
       if (pathname === '/api/admin/navigation' && req.method === 'PUT') {
         const input = await readBody(req);
-        if (!Array.isArray(input.sections) || input.sections.length < 1 || input.sections.length > 30) throw new Error('Нужно оставить от 1 до 30 разделов.');
-        const ids = new Set(); const titles = new Set();
+        if (!Array.isArray(input.groups) || input.groups.length < 1 || input.groups.length > 20) throw new Error('Нужно оставить от 1 до 20 групп.');
+        if (!Array.isArray(input.sections) || input.sections.length < 1 || input.sections.length > 100) throw new Error('Добавь хотя бы один подраздел и не больше 100.');
+        const ids = new Set(); const groupTitles = new Set();
+        const groups = input.groups.map((raw) => {
+          const id = String(raw.id || '').trim(); const title = String(raw.title || '').trim().slice(0, 40); const icon = String(raw.icon || 'book');
+          if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || ids.has(id)) throw new Error('Идентификаторы групп должны быть уникальными.');
+          if (!title || groupTitles.has(title.toLocaleLowerCase('ru'))) throw new Error('Названия групп должны быть заполнены и не повторяться.');
+          if (!iconNames.has(icon)) throw new Error('Выбрана неизвестная иконка группы.');
+          ids.add(id); groupTitles.add(title.toLocaleLowerCase('ru')); return { id, title, icon };
+        });
+        const groupIds = new Set(groups.map((group) => group.id)); const sectionTitles = new Set();
         const sections = input.sections.map((raw) => {
           const id = String(raw.id || '').trim(); const title = String(raw.title || '').trim().slice(0, 40); const icon = String(raw.icon || 'book');
           if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || ids.has(id)) throw new Error('Идентификаторы разделов должны быть уникальными.');
-          if (!title || titles.has(title.toLocaleLowerCase('ru'))) throw new Error('Названия разделов должны быть заполнены и не повторяться.');
+          const groupId = String(raw.groupId || ''); const normalizedTitle = `${groupId}:${title.toLocaleLowerCase('ru')}`;
+          if (!title || sectionTitles.has(normalizedTitle) || !groupIds.has(groupId)) throw new Error('Укажи уникальное название подраздела и существующую группу.');
           if (!iconNames.has(icon)) throw new Error('Выбрана неизвестная иконка.');
-          ids.add(id); titles.add(title.toLocaleLowerCase('ru'));
+          ids.add(id); sectionTitles.add(normalizedTitle);
           const manualIds = Array.isArray(raw.manualIds) ? [...new Set(raw.manualIds.map(String))].slice(0, 1000) : [];
-          return { id, title, icon, manualIds };
+          return { id, groupId, title, icon, manualIds };
         });
         const currentManuals = await readManuals(); const sectionIds = new Set(sections.map((section) => section.id));
         const orphan = currentManuals.find((manual) => !sectionIds.has(manual.category));
         if (orphan) throw new Error(`Сначала перенеси мануал «${orphan.title}» в другой раздел.`);
         for (const section of sections) section.manualIds = section.manualIds.filter((id) => currentManuals.some((manual) => manual.id === id && manual.category === section.id));
-        const saved = { sections }; await writeNavigation(saved); categories = sectionIds; return send(res, 200, saved);
+        const saved = { groups, sections }; await writeNavigation(saved); categories = sectionIds; return send(res, 200, saved);
       }
       if (pathname === '/api/admin/manuals' && req.method === 'GET') return send(res, 200, await readManuals());
       if (pathname === '/api/admin/manuals' && req.method === 'PUT') {
