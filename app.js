@@ -290,7 +290,7 @@ function renderPublishedManual(manual) {
   const dataBlock = manual.blocks.find((block) => block.type === 'data');
   if (!dataBlock && manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); root.append(dataPanel); updateDataPreview(root); }
   const content = make('div', 'published-blocks');
-  content.style.setProperty('--manual-block-gap', ({ compact: '8px', normal: '14px', relaxed: '24px' })[manual.blockSpacing] || '14px');
+  content.style.setProperty('--manual-block-gap', `${normalizeBlockSpacing(manual.blockSpacing)}px`);
   manual.blocks.forEach((block, index) => {
     let element;
     if (block.type === 'data') { element = createDataForm(block.fields || defaultDataFields()); }
@@ -341,7 +341,8 @@ function defaultBlock(type) {
   if (type === 'table') return { ...common, ...defaultTable() };
   return common;
 }
-function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), icon: document.querySelector('#page-manual-icon').value || 'book', blockSpacing: document.querySelector('#page-block-spacing').value || 'normal', status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
+function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), icon: document.querySelector('#page-manual-icon').value || 'book', blockSpacing: normalizeBlockSpacing(document.querySelector('#page-block-spacing').value), status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
+function normalizeBlockSpacing(value) { const legacy = { compact: 8, normal: 14, relaxed: 24 }; const parsed = Number.isFinite(Number(value)) ? Number(value) : legacy[value]; return Math.max(0, Math.min(80, Math.round(parsed ?? 14))); }
 function refreshEditorCanvas() {
   const data = currentPageData(); editorCanvas.replaceChildren();
   const meta = make('div', 'canvas-page-meta'); meta.append(make('span', '', categories[data.category].toLocaleUpperCase('ru')), make('span', '', '·'), make('span', '', data.status === 'published' ? 'ОПУБЛИКОВАНО' : 'ЧЕРНОВИК'));
@@ -386,7 +387,7 @@ function refreshEditorCanvas() {
   if (!data.blocks.length) { const empty = make('p', 'editor-no-blocks', 'Нажми на тип блока слева, чтобы начать собирать инструкцию.'); editorCanvas.append(empty); }
   const path = data.slug && data.category ? `/manual/${data.category}/${data.slug}` : 'URL появится после заполнения раздела и slug';
   document.querySelector('#editor-url').textContent = path.startsWith('/') ? `${location.origin}${path}` : path;
-  editorCanvas.style.setProperty('--manual-block-gap', ({ compact: '7px', normal: '11px', relaxed: '19px' })[data.blockSpacing] || '11px');
+  editorCanvas.style.setProperty('--manual-block-gap', `${data.blockSpacing}px`);
   document.querySelector('#delete-manual').hidden = !currentManual?.id;
   document.querySelector('#manual-picker').value = currentManual?.id || '';
 }
@@ -558,11 +559,11 @@ function renderBlockInspector() {
   blockProperties.querySelectorAll('[data-remove-tab]').forEach((button) => button.addEventListener('click', () => { block.tabs.splice(Number(button.dataset.removeTab), 1); renderBlockInspector(); refreshEditorCanvas(); }));
 }
 function resetEditor() {
-  currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#page-block-spacing').value = 'normal'; fillIconOptions(document.querySelector('#page-manual-icon'), 'book'); document.querySelector('#page-manual-icon-file').value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
+  currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#page-block-spacing').value = '14'; fillIconOptions(document.querySelector('#page-manual-icon'), 'book'); document.querySelector('#page-manual-icon-file').value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
 }
 function setEditorMessage(message, kind = 'success') { editorMessage.textContent = message; editorMessage.dataset.kind = kind; }
 function hydrateEditor(manual) {
-  currentManual = structuredClone(manual); selectedBlockId = null; pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; document.querySelector('#page-block-spacing').value = manual.blockSpacing || 'normal'; fillIconOptions(document.querySelector('#page-manual-icon'), manual.icon || 'book'); document.querySelector('#page-manual-icon-file').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
+  currentManual = structuredClone(manual); selectedBlockId = null; pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; document.querySelector('#page-block-spacing').value = String(normalizeBlockSpacing(manual.blockSpacing)); fillIconOptions(document.querySelector('#page-manual-icon'), manual.icon || 'book'); document.querySelector('#page-manual-icon-file').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
 }
 function renderPicker() {
   const picker = document.querySelector('#manual-picker'); picker.replaceChildren();
@@ -726,7 +727,7 @@ loginForm.addEventListener('submit', async (event) => {
 document.querySelector('#logout-button').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); adminAuthenticated = false; renderRoute('/admin'); });
 document.querySelector('.exit-constructor').addEventListener('click', () => { document.querySelector('#search').value = ''; });
 document.querySelector('#manual-picker').addEventListener('change', (event) => { if (!event.target.value) resetEditor(); else { const manual = manuals.find((item) => item.id === event.target.value); if (manual) hydrateEditor(manual); } });
-document.querySelector('#page-properties').addEventListener('input', () => { const slug = pageSlug.value.trim().toLowerCase(); pageSlug.value = slug; refreshEditorCanvas(); });
+  document.querySelector('#page-properties').addEventListener('input', () => { const slug = pageSlug.value.trim().toLowerCase(); pageSlug.value = slug; const gap = document.querySelector('#page-block-spacing'); gap.value = String(normalizeBlockSpacing(gap.value)); refreshEditorCanvas(); });
 pageTitle.addEventListener('input', () => { if (!pageSlug.dataset.edited) pageSlug.value = pageTitle.value.toLowerCase().replace(/[а-яё]/g, (char) => ({'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}[char])).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); refreshEditorCanvas(); });
 pageSlug.addEventListener('input', () => { pageSlug.dataset.edited = 'true'; });
 document.querySelector('#page-category').addEventListener('change', refreshEditorCanvas);

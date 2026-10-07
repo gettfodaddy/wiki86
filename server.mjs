@@ -112,7 +112,9 @@ function safeManual(input, previous = {}) {
   const description = String(input.description || '').trim().slice(0, 500);
   const icon = String(input.icon ?? previous.icon ?? 'book');
   if (!validIcon(icon)) throw new Error('Иконка мануала должна быть встроенной или безопасным изображением до 48 КБ.');
-  const blockSpacing = ['compact', 'normal', 'relaxed'].includes(input.blockSpacing) ? input.blockSpacing : 'normal';
+  const spacingPresets = { compact: 8, normal: 14, relaxed: 24 };
+  const requestedSpacing = Number.isFinite(Number(input.blockSpacing)) ? Number(input.blockSpacing) : spacingPresets[input.blockSpacing];
+  const blockSpacing = Math.max(0, Math.min(80, Math.round(requestedSpacing ?? 14)));
   const status = input.status === 'published' ? 'published' : 'draft';
   if (!title || !categories.has(category) || slug.length > 60 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error('Enter a title, valid category and URL slug (up to 60 characters).');
   if (!Array.isArray(input.blocks) || input.blocks.length > 150) throw new Error('Invalid block list.');
@@ -164,7 +166,8 @@ function safeManual(input, previous = {}) {
     return block;
   });
   if (blocks.filter((block) => block.type === 'data').length > 1) throw new Error('A manual can contain only one data form.');
-  const before = { title: previous.title, category: previous.category, slug: previous.slug, description: previous.description || '', icon: previous.icon || 'book', blockSpacing: previous.blockSpacing || 'normal', blocks: previous.blocks || [] };
+  const previousSpacing = Number.isFinite(Number(previous.blockSpacing)) ? Number(previous.blockSpacing) : (spacingPresets[previous.blockSpacing] ?? 14);
+  const before = { title: previous.title, category: previous.category, slug: previous.slug, description: previous.description || '', icon: previous.icon || 'book', blockSpacing: previousSpacing, blocks: previous.blocks || [] };
   const after = { title, category, slug, description, icon, blockSpacing, blocks };
   const updated = previous.updated === true || Boolean(previous.id && previous.status === 'published' && status === 'published' && JSON.stringify(before) !== JSON.stringify(after));
   return { id: previous.id || String(input.id || randomUUID()), title, category, slug, path: `/manual/${category}/${slug}`, description, icon, blockSpacing, status, updated, blocks, createdAt: previous.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
