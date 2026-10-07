@@ -51,6 +51,12 @@ body.constructor-mode .admin-login-overlay{inset:0}
 @media(max-width:1150px){body.constructor-mode .functional-builder{grid-template-columns:minmax(190px,220px) minmax(300px,1fr)}body.constructor-mode .builder-inspector{position:static;max-height:none;grid-column:1/-1}body.constructor-mode .builder-canvas-wrap{position:static;max-height:none}}
 @media(max-width:780px){body.constructor-mode .functional-builder{grid-template-columns:1fr}body.constructor-mode .builder-inspector{grid-column:auto}body.constructor-mode .page-canvas{min-height:400px}}
 @media(prefers-reduced-motion:reduce){body.constructor-mode *,body.constructor-mode *::before,body.constructor-mode *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
+.published-accordion{margin:7px 0;border-radius:10px}
+.accordion-summary{min-height:56px;gap:10px;padding:8px 12px}
+.accordion-icon{width:28px;height:28px;border-radius:8px}
+.accordion-number{min-width:28px;height:24px}
+.accordion-title{font-size:13px}
+.accordion-content{padding:0 14px 12px 50px;line-height:1.7}
 
 /* wiki86 article/editor polish */
 .editor-block{position:relative;animation:blockEnter .32s cubic-bezier(.2,.8,.2,1) both}.editor-block:nth-of-type(2){animation-delay:.025s}.editor-block:nth-of-type(3){animation-delay:.05s}.editor-block:nth-of-type(4){animation-delay:.075s}.editor-block:focus-within{outline:2px solid #65ddc544;outline-offset:1px}.block-action:disabled{opacity:.28;cursor:not-allowed;filter:saturate(.3)}

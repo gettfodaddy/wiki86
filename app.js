@@ -153,18 +153,23 @@ function createDataForm(fields, { editor = false } = {}) {
   details.append(summary, content); return details;
 }
 function createAccordionBlock(block, { editor = false } = {}) {
+  const rawText = String(block.text || '').trim();
+  const text = ['Добавьте содержимое сворачиваемого раздела.', 'Добавьте описание раздела.'].includes(rawText) ? '' : block.text || '';
   if (block.collapsible === false) {
     const section = make('section', `published-accordion accordion-static${editor ? ' editor-accordion' : ''}`);
     const summary = make('div', 'accordion-summary'); const badge = make('span', 'accordion-number', block.number || '1'); const icon = make('span', 'accordion-icon'); icon.append(iconElement(block.icon || 'list'));
     summary.append(icon, badge, templateText('strong', 'accordion-title', block.title || 'Как это работает'));
-    section.append(summary, templateText('div', 'accordion-content', block.text || 'Добавьте описание раздела.')); return section;
+    section.append(summary);
+    if (text.trim()) section.append(templateText('div', 'accordion-content', text));
+    return section;
   }
   const details = make('details', `published-accordion${editor ? ' editor-accordion' : ''}`); details.open = editor;
   const summary = make('summary', 'accordion-summary');
   const badge = make('span', 'accordion-number', block.number || '1');
   const icon = make('span', 'accordion-icon'); icon.append(iconElement(block.icon || 'list'));
   summary.append(icon, badge, templateText('strong', 'accordion-title', block.title || 'Как это работает'), iconElement('chevron', 'icon summary-arrow'));
-  details.append(summary, templateText('div', 'accordion-content', block.text || 'Добавьте описание раздела.'));
+  details.append(summary);
+  if (text.trim()) details.append(templateText('div', 'accordion-content', text));
   return details;
 }
 document.addEventListener('input', (event) => {
@@ -278,7 +283,7 @@ function defaultBlock(type) {
   if (type === 'heading') return { ...common, title: 'Новый раздел', level: '2' };
   if (type === 'text') return { ...common, text: 'Добавьте пояснение к инструкции.' };
   if (type === 'step') return { ...common, title: 'Новый шаг', text: 'Опишите действие и ожидаемый результат.' };
-  if (type === 'accordion') return { ...common, number: '1', icon: 'list', collapsible: true, title: 'Как это работает', text: 'Добавьте содержимое сворачиваемого раздела.' };
+  if (type === 'accordion') return { ...common, number: '1', icon: 'list', collapsible: true, title: 'Как это работает', text: '' };
   if (type === 'code') return { ...common, language: 'bash', code: 'команда' };
   if (type === 'note') return { ...common, title: 'Важно', text: 'Добавьте важное примечание.', variant: 'warning' };
   if (type === 'data') return { ...common, fields: defaultDataFields() };
