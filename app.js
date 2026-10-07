@@ -349,7 +349,7 @@ function normalizeBlockSpacing(value) { const legacy = { compact: 8, normal: 14,
 function refreshEditorCanvas() {
   const data = currentPageData(); editorCanvas.replaceChildren();
   const meta = make('div', 'canvas-page-meta'); meta.append(make('span', '', categories[data.category].toLocaleUpperCase('ru')), make('span', '', '·'), make('span', '', data.status === 'published' ? 'ОПУБЛИКОВАНО' : 'ЧЕРНОВИК'));
-  const head = make('header', 'canvas-title-block'); head.append(make('div', '', '')); head.firstChild.append(make('small', '', 'ЗАГОЛОВОК МАНУАЛА'), make('h2', '', data.title || 'Название инструкции'), make('p', '', data.description || 'Краткое описание инструкции'));
+  const head = make('header', 'canvas-title-block'); const titleContent = make('div', 'canvas-title-content'); titleContent.append(make('small', '', 'ЗАГОЛОВОК МАНУАЛА'), make('h2', '', data.title || 'Название инструкции'), make('p', '', data.description || 'Краткое описание инструкции')); const editTitle = make('button', 'canvas-title-edit', 'Изменить'); editTitle.type = 'button'; editTitle.title = 'Редактировать название и описание мануала'; editTitle.addEventListener('click', () => { selectedBlockId = null; renderBlockInspector(); pageTitle.focus(); pageTitle.select(); }); head.append(titleContent, editTitle);
   editorCanvas.append(meta, head);
   data.blocks.forEach((block, index) => {
     const card = make('article', `editor-block editor-block-${block.type}${block.type === 'note' ? ` note-${block.variant || 'warning'}` : ''}${selectedBlockId === block.id ? ' selected' : ''}`); card.dataset.blockId = block.id;
