@@ -99,8 +99,9 @@ const userDataKey = 'wiki86-user-data-v1';
 let storedUserData = {};
 try { storedUserData = JSON.parse(localStorage.getItem(userDataKey) || '{}'); } catch { storedUserData = {}; }
 function updateDataPreview(root = document) {
-  root.querySelectorAll('[data-value]').forEach((field) => { field.value = typeof storedUserData[field.dataset.value] === 'string' ? storedUserData[field.dataset.value] : ''; });
+  root.querySelectorAll('[data-value]').forEach((field) => { field.value = typeof storedUserData[field.dataset.value] === 'string' ? storedUserData[field.dataset.value] : ''; field.classList.toggle('is-filled', Boolean(field.value.trim())); });
   root.querySelectorAll('[data-preview]').forEach((target) => { const key = target.dataset.preview; target.textContent = storedUserData[key]?.trim() || (key === 'nodeDomain' ? 'node.example.com' : key === 'email' ? 'mail@example.com' : '—'); });
+  document.querySelectorAll('.editor-data-form .field').forEach((label) => { const key = label.querySelector('code')?.textContent; const preview = label.querySelector('.data-editor-value'); if (!preview || !key) return; const resolved = resolveVariable(key); preview.className = `data-editor-value template-value ${resolved.filled ? 'is-filled' : 'is-example'}`; preview.textContent = resolved.value; });
 }
 const defaultDataFields = () => [
   { key: 'NODE_DOMAIN', label: 'Домен ноды', placeholder: 'node.example.com', help: 'A-запись домена должна вести на IP ноды.' },
@@ -155,7 +156,7 @@ function createDataForm(fields, { editor = false } = {}) {
   const grid = make('div', 'data-grid');
   fields.forEach((field) => {
     const label = make('label', 'field'); const span = make('span'); span.append(document.createTextNode(field.label || field.key || 'Поле'), make('code', '', field.key || 'FIELD'));
-    if (editor) { label.append(span, make('div', 'data-editor-value', getVariableValue(field.key) || field.placeholder || 'Значение появится здесь')); }
+    if (editor) { const resolved = resolveVariable(field.key); label.append(span, make('div', `data-editor-value template-value ${resolved.filled ? 'is-filled' : 'is-example'}`, resolved.value)); }
     else { const input = document.createElement('input'); input.dataset.value = field.key; input.placeholder = field.placeholder || ''; input.value = getVariableValue(field.key); input.autocomplete = 'off'; label.append(span, input); if (field.help) label.append(make('small', '', field.help)); }
     grid.append(label);
   });
@@ -207,7 +208,7 @@ document.addEventListener('input', (event) => {
   const root = field.closest('#published-manual-content') || document;
   updateDataPreview(root);
   refreshVariableTexts(root);
-  root.querySelectorAll('.editor-data-form .field').forEach((label) => { const key = label.querySelector('code')?.textContent; const preview = label.querySelector('.data-editor-value'); if (preview && key) preview.textContent = getVariableValue(key) || 'Значение появится здесь'; });
+  document.querySelectorAll('.editor-data-form .field').forEach((label) => { const key = label.querySelector('code')?.textContent; const preview = label.querySelector('.data-editor-value'); if (!preview || !key) return; const resolved = resolveVariable(key); preview.className = `data-editor-value template-value ${resolved.filled ? 'is-filled' : 'is-example'}`; preview.textContent = resolved.value; });
 });
 document.addEventListener('click', (event) => {
   if (!event.target.closest('[data-clear-data]')) return;
@@ -216,6 +217,7 @@ document.addEventListener('click', (event) => {
 });
 
 function iconElement(name, className = 'icon') {
+  if (typeof name === 'string' && /^data:image\/(?:png|jpeg|webp|svg\+xml);base64,/.test(name)) { const image = document.createElement('img'); image.className = `${className} uploaded-icon`; image.src = name; image.alt = ''; return image; }
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.classList.add(...className.split(' '));
   const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', `#i-${iconChoices.some(([key]) => key === name) ? name : 'book'}`); svg.append(use); return svg;
 }
@@ -236,14 +238,14 @@ function renderManualLinks() {
       const color = sectionColor(data); section.style.setProperty('--accent', color); section.style.setProperty('--border', `color-mix(in srgb, ${color} 55%, #172033)`); section.style.setProperty('--wash', `color-mix(in srgb, ${color} 18%, #171c2c)`); section.style.setProperty('--icon-bg', `color-mix(in srgb, ${color} 20%, #152338)`);
       const toggle = make('button', 'section-toggle'); toggle.type = 'button'; toggle.setAttribute('aria-expanded', String(openSections.has(data.id)));
       const icon = make('span', 'section-icon'); icon.append(iconElement(data.icon)); const name = make('span', 'section-name', data.title);
-      const rows = sortedSectionManuals(data); const count = make('span', 'section-count', String(rows.length)); const chevron = iconElement('chevron', 'icon chevron');
-      toggle.append(icon, name, count, chevron); toggle.title = data.title;
+      const rows = sortedSectionManuals(data); const count = make('span', 'section-count', String(rows.length)); const updatedCount = rows.filter((manual) => manual.updated).length; const updates = make('span', 'section-updates', `Обновлений: ${updatedCount}`); updates.hidden = updatedCount === 0; const chevron = iconElement('chevron', 'icon chevron');
+      toggle.append(icon, name, count, updates, chevron); toggle.title = data.title;
       const items = make('div', 'section-items'); items.hidden = !openSections.has(data.id);
       const list = make('div', 'manual-list');
       rows.forEach((manual) => {
         const link = document.createElement('a'); link.className = 'manual-link'; link.href = manual.path; link.dataset.route = manual.path; link.title = manual.title;
-        const badge = make('span', 'item-icon'); badge.append(iconElement(manual.path === '/manual/selfsteal' ? 'globe' : 'book'));
-        link.append(badge, make('span', '', manual.title), make('i')); list.append(link);
+        const badge = make('span', 'item-icon'); badge.append(iconElement(manual.icon || (manual.path === '/manual/selfsteal' ? 'globe' : 'book')));
+        link.append(badge, make('span', 'manual-link-title', manual.title)); if (manual.updated) link.append(make('span', 'manual-update-badge', 'UPD')); link.append(make('i')); list.append(link);
       });
       const empty = make('p', 'empty-category', 'Мануалы скоро появятся'); empty.hidden = rows.length > 0;
       items.append(list, empty); section.append(toggle, items); sectionsWrap.append(section);
@@ -288,12 +290,13 @@ function renderPublishedManual(manual) {
   const dataBlock = manual.blocks.find((block) => block.type === 'data');
   if (!dataBlock && manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); root.append(dataPanel); updateDataPreview(root); }
   const content = make('div', 'published-blocks');
+  content.style.setProperty('--manual-block-gap', ({ compact: '8px', normal: '14px', relaxed: '24px' })[manual.blockSpacing] || '14px');
   manual.blocks.forEach((block, index) => {
     let element;
     if (block.type === 'data') { element = createDataForm(block.fields || defaultDataFields()); }
     else if (block.type === 'heading') { element = templateText(block.level === '3' ? 'h3' : 'h2', 'published-heading', block.title || 'Заголовок'); }
     else if (block.type === 'text') { element = templateText('p', 'published-text', block.text || ''); }
-    else if (block.type === 'step') { element = make('section', 'published-step'); element.append(make('span', 'step-number', block.number || String(index + 1).padStart(2, '0')), make('div', 'published-step-content', '')); const body = element.lastChild; body.append(templateText('h2', '', block.title || `Шаг ${index + 1}`)); const items = Array.isArray(block.items) ? block.items : (block.text ? [{ type: 'text', text: block.text }] : []); items.forEach((item) => body.append(renderStepItem(item))); }
+    else if (block.type === 'step') { element = make('section', `published-step${block.showNumber === false ? ' step-without-number' : ''}${block.showTitle === false ? ' step-without-title' : ''}`); if (block.showNumber !== false) element.append(make('span', 'step-number', block.number || String(index + 1).padStart(2, '0'))); element.append(make('div', 'published-step-content', '')); const body = element.lastChild; if (block.showTitle !== false) body.append(templateText('h2', '', block.title || `Шаг ${index + 1}`)); const items = Array.isArray(block.items) ? block.items : (block.text ? [{ type: 'text', text: block.text }] : []); items.forEach((item) => body.append(renderStepItem(item))); }
     else if (block.type === 'accordion') { element = createAccordionBlock(block); }
     else if (block.type === 'tabs') { element = createTabsBlock(block); }
     else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '', { rich: false })); element.append(top, pre); }
@@ -338,7 +341,7 @@ function defaultBlock(type) {
   if (type === 'table') return { ...common, ...defaultTable() };
   return common;
 }
-function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
+function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), icon: document.querySelector('#page-manual-icon').value || 'book', blockSpacing: document.querySelector('#page-block-spacing').value || 'normal', status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
 function refreshEditorCanvas() {
   const data = currentPageData(); editorCanvas.replaceChildren();
   const meta = make('div', 'canvas-page-meta'); meta.append(make('span', '', categories[data.category].toLocaleUpperCase('ru')), make('span', '', '·'), make('span', '', data.status === 'published' ? 'ОПУБЛИКОВАНО' : 'ЧЕРНОВИК'));
@@ -357,7 +360,8 @@ function refreshEditorCanvas() {
       const stepContent = make('div', 'editor-step-content');
       const title = templateText('h3', 'inline-editable', block.title || `Шаг ${index + 1}`); title.contentEditable = 'true'; title.dataset.inlineField = 'title'; title.setAttribute('role', 'textbox'); title.setAttribute('aria-label', 'Название шага — нажмите, чтобы изменить'); title.title = 'Нажмите, чтобы изменить название шага';
       const text = templateText('p', 'inline-editable', block.text || 'Описание шага'); text.contentEditable = 'true'; text.dataset.inlineField = 'text'; text.setAttribute('role', 'textbox'); text.setAttribute('aria-label', 'Описание шага — нажмите, чтобы изменить'); text.title = 'Нажмите, чтобы изменить описание шага';
-      stepContent.append(title);
+      if (block.showNumber !== false) card.append(number);
+      if (block.showTitle !== false) stepContent.append(title);
       const items = block.items;
       items.forEach((item, itemIndex) => {
         const itemWrap = make('div', `step-item-editor${selectedBlockId === item.id ? ' selected' : ''}`); itemWrap.dataset.parentBlockId = block.id; itemWrap.dataset.stepItemId = item.id;
@@ -366,7 +370,7 @@ function refreshEditorCanvas() {
         itemWrap.append(itemTools, renderStepItem(item, { editor: true })); itemWrap.addEventListener('click', (event) => { if (!event.target.closest('button')) { selectedBlockId = block.id; renderBlockInspector(); } }); stepContent.append(itemWrap);
       });
       if (!items.length) stepContent.append(make('p', 'step-items-empty', 'Добавь внутрь шага текст, код, примечание, изображение или таблицу.'));
-      card.append(number, stepContent);
+      card.append(stepContent);
     }
     if (block.type === 'accordion') card.append(createAccordionBlock(block, { editor: true }));
     if (block.type === 'tabs') card.append(createTabsBlock(block, { editor: true }));
@@ -382,12 +386,59 @@ function refreshEditorCanvas() {
   if (!data.blocks.length) { const empty = make('p', 'editor-no-blocks', 'Нажми на тип блока слева, чтобы начать собирать инструкцию.'); editorCanvas.append(empty); }
   const path = data.slug && data.category ? `/manual/${data.category}/${data.slug}` : 'URL появится после заполнения раздела и slug';
   document.querySelector('#editor-url').textContent = path.startsWith('/') ? `${location.origin}${path}` : path;
+  editorCanvas.style.setProperty('--manual-block-gap', ({ compact: '7px', normal: '11px', relaxed: '19px' })[data.blockSpacing] || '11px');
   document.querySelector('#delete-manual').hidden = !currentManual?.id;
   document.querySelector('#manual-picker').value = currentManual?.id || '';
 }
 function inputControl(labelText, key, value, { multiline = false, placeholder = '' } = {}) {
   const label = make('label', 'inspector-field', labelText); const field = document.createElement(multiline ? 'textarea' : 'input'); field.dataset.blockField = key; field.value = value || ''; field.placeholder = placeholder;
   if (!multiline) field.type = 'text'; label.append(field); return label;
+}
+function formatCode(value, language) {
+  const source = String(value || '').replace(/\r\n?/g, '\n');
+  if (/^jsonc?$/i.test(language.trim())) {
+    try { return JSON.stringify(JSON.parse(source), null, 2); } catch { return null; }
+  }
+  if (/^(bash|sh|shell)$/i.test(language.trim())) {
+    let depth = 0; let heredoc = '';
+    return source.split('\n').map((raw) => {
+      const line = raw.trim(); if (heredoc) { if (line === heredoc) heredoc = ''; return raw.trimEnd(); } if (!line) return '';
+      if (/^(fi|done|esac|else|elif\b|;;)/.test(line)) depth = Math.max(0, depth - 1);
+      const formatted = `${'  '.repeat(depth)}${line}`;
+      if (/\b(?:then|do)\s*(?:#.*)?$/.test(line) || /^else\s*(?:#.*)?$/.test(line) || /^case\b.*\bin\s*$/.test(line) || /^(?:if|for|while|until|select|function)\b.*\{\s*$/.test(line)) depth += 1;
+      if (/^(?:\*|[\w*?\[|.!+-]+)\)\s*(?:#.*)?$/.test(line)) depth += 1;
+      if (/^\}\s*;?\s*$/.test(line)) depth = Math.max(0, depth - 1);
+      const heredocMatch = line.match(/<<-?\s*(['"]?)([\w.-]+)\1/); if (heredocMatch) heredoc = heredocMatch[2];
+      return formatted;
+    }).join('\n');
+  }
+  if (/^(nginx|javascript|js|css|typescript|ts)$/i.test(language.trim())) {
+    let depth = 0;
+    return source.split('\n').map((raw) => {
+      const line = raw.trim(); if (!line) return '';
+      const structural = line.replace(/("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/g, '');
+      if (/^}/.test(structural)) depth = Math.max(0, depth - 1);
+      const formatted = `${'  '.repeat(depth)}${line}`;
+      const opens = (structural.match(/{/g) || []).length; const closes = (structural.match(/}/g) || []).length;
+      depth = Math.max(0, depth + opens - closes + (/^}/.test(structural) ? 1 : 0));
+      return formatted;
+    }).join('\n');
+  }
+  return source.replace(/\t/g, '  ').split('\n').map((line) => line.trimEnd()).join('\n');
+}
+function addCodeEditorTools() {
+  blockProperties.querySelectorAll('[data-block-field="code"],[data-step-item-field="code"],[data-block-field^="tab-code-"]').forEach((field) => {
+    const group = field.closest('.step-item-properties,.tab-field-editor');
+    const languageField = group?.querySelector('[data-step-item-field="language"], [data-block-field^="tab-language-"]') || blockProperties.querySelector('[data-block-field="language"]');
+    const tools = make('div', 'code-editor-tools'); const format = make('button', 'add-data-field code-format-button', 'Форматировать код'); format.type = 'button'; format.title = 'JSON получит корректные отступы; для nginx/JS/CSS применяется отступ по фигурным скобкам.';
+    format.addEventListener('click', () => { const result = formatCode(field.value, languageField?.value || 'text'); if (result === null) { setEditorMessage('Не удалось разобрать JSON. Проверьте синтаксис.', 'error'); return; } field.value = result; field.dispatchEvent(new Event('input', { bubbles: true })); setEditorMessage('Код отформатирован. Не забудьте сохранить мануал.'); });
+    tools.append(format); field.parentElement.after(tools);
+    field.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab') { event.preventDefault(); field.setRangeText('  ', field.selectionStart, field.selectionEnd, 'end'); field.dispatchEvent(new Event('input', { bubbles: true })); }
+      if (event.key === 'Enter') { const start = field.selectionStart; const lineStart = field.value.lastIndexOf('\n', start - 1) + 1; const indent = field.value.slice(lineStart, start).match(/^\s*/)?.[0] || ''; const extra = /\{\s*$/.test(field.value.slice(lineStart, start)) ? '  ' : ''; event.preventDefault(); field.setRangeText(`\n${indent}${extra}`, start, field.selectionEnd, 'end'); field.dispatchEvent(new Event('input', { bubbles: true })); }
+    });
+    field.addEventListener('paste', () => setTimeout(() => { const result = formatCode(field.value, languageField?.value || 'text'); if (result !== null && result !== field.value) { field.value = result; field.dispatchEvent(new Event('input', { bubbles: true })); } }, 0));
+  });
 }
 function tableEditor(block) {
   if (!Array.isArray(block.headers) || !block.headers.length) Object.assign(block, defaultTable());
@@ -409,7 +460,10 @@ function renderBlockInspector() {
   blockProperties.hidden = false; document.querySelector('#page-properties').hidden = true;
   const heading = make('div', 'inspector-heading'); heading.append(make('span', 'block-icon heading-icon', '✦')); const titles = make('div'); titles.append(make('small', '', 'РЕДАКТИРОВАНИЕ БЛОКА'), make('strong', '', blockNames[block.type])); heading.append(titles); blockProperties.append(heading);
   if (block.type === 'step') normalizeStep(block);
-  if (block.type === 'step') blockProperties.append(inputControl('Номер шага (можно оставить пустым для автонумерации)', 'number', block.number));
+  if (block.type === 'step') {
+    blockProperties.append(inputControl('Номер шага (пустое поле включает автонумерацию)', 'number', block.number));
+    for (const [key, label] of [['showNumber', 'Показывать номер шага'], ['showTitle', 'Показывать заголовок']]) { const wrapper = make('label', 'toggle-field'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = block[key] !== false; checkbox.dataset.blockField = key; wrapper.append(checkbox, make('span', '', label)); blockProperties.append(wrapper); }
+  }
   if (block.type === 'heading' || block.type === 'step' || block.type === 'note' || block.type === 'accordion') blockProperties.append(inputControl(block.type === 'note' ? 'Заголовок примечания' : 'Заголовок', 'title', block.title));
   if (block.type === 'text' || block.type === 'note' || block.type === 'accordion') blockProperties.append(inputControl(block.type === 'accordion' ? 'Содержимое раздела' : 'Текст', 'text', block.text, { multiline: true, placeholder: 'Введите текст' }));
   if (block.type === 'step') {
@@ -418,7 +472,7 @@ function renderBlockInspector() {
     const add = make('div', 'step-add-items');
     [['text','＋ Текст'],['code','＋ Код'],['note','＋ Примечание'],['image','＋ Изображение'],['table','＋ Таблица'],['divider','＋ Разделитель']].forEach(([type, label]) => { const button = make('button', 'add-data-field', label); button.type = 'button'; button.dataset.addStepItem = type; add.append(button); }); blockProperties.append(add);
     block.items.forEach((item, index) => {
-      const group = make('section', 'step-item-properties'); group.append(make('strong', '', `${index + 1}. ${blockNames[item.type] || item.type}`));
+      const group = make('section', 'step-item-properties'); group.dataset.stepItemId = item.id; group.append(make('strong', '', `${index + 1}. ${blockNames[item.type] || item.type}`));
       const addField = (label, key, value, multiline = false) => { const f = inputControl(label, key, value, { multiline }); const input = f.querySelector('[data-block-field]'); input.dataset.stepItemField = key; input.dataset.stepItemId = item.id; group.append(f); };
       if (item.type === 'text') addField('Текст', 'text', item.text, true);
       if (item.type === 'code') { addField('Язык', 'language', item.language || 'bash'); addField('Код', 'code', item.code, true); }
@@ -451,6 +505,7 @@ function renderBlockInspector() {
   if (block.type === 'heading') { const selectLabel = make('label', 'inspector-field', 'Уровень заголовка'); const select = document.createElement('select'); select.dataset.blockField = 'level'; [['2','H2'],['3','H3']].forEach(([value,label]) => { const opt = document.createElement('option'); opt.value = value; opt.textContent = label; select.append(opt); }); select.value = block.level || '2'; selectLabel.append(select); blockProperties.append(selectLabel); }
   if (block.type === 'code') { blockProperties.append(inputControl('Язык блока', 'language', block.language, { placeholder: 'bash' }), inputControl('Команды и код', 'code', block.code, { multiline: true })); }
   if (block.type === 'image') blockProperties.append(inputControl('HTTPS-ссылка или путь /assets/*.svg', 'src', block.src), inputControl('Alt-текст', 'alt', block.alt));
+  addCodeEditorTools();
   if (block.type === 'table') blockProperties.append(tableEditor(block));
   if (block.type === 'note') { const label = make('label', 'inspector-field', 'Вид примечания'); const select = document.createElement('select'); select.dataset.blockField = 'variant'; [['warning','Важно'],['info','Информация'],['success','Успех']].forEach(([value,title]) => { const option = document.createElement('option'); option.value=value; option.textContent=title; select.append(option); }); select.value=block.variant||'warning'; label.append(select); blockProperties.append(label); }
   if (block.type === 'data') {
@@ -491,7 +546,7 @@ function renderBlockInspector() {
   blockProperties.querySelectorAll('[data-block-field]').forEach((field) => { if (field.dataset.stepItemField || field.dataset.tableField || block.type === 'tabs' && /^tab-(title|text|language|code)-\d+$/.test(field.dataset.blockField)) return; const update = () => { const key = field.dataset.blockField; const match = key.match(/^field-(key|label|placeholder|help)-(\d+)$/); if (match) { const property = ({ key: 'key', label: 'label', placeholder: 'placeholder', help: 'help' })[match[1]]; const value = property === 'key' ? field.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 40) : field.value; field.value = value; block.fields[Number(match[2])][property] = value; const token = field.closest('.data-field-editor')?.querySelector('.variable-token'); if (token) token.textContent = `{{${value || 'FIELD'}}}`; } else block[key] = field.type === 'checkbox' ? field.checked : field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
   blockProperties.querySelectorAll('[data-step-item-field]').forEach((field) => { const update = () => { const item = block.items.find((entry) => entry.id === field.dataset.stepItemId); if (item) item[field.dataset.stepItemField] = field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
   const tableTarget = (element) => { const parent = element.closest('.step-item-properties'); return parent?.dataset.stepItemId ? block.items.find((item) => item.id === parent.dataset.stepItemId) : block; };
-  blockProperties.querySelectorAll('[data-table-cell]').forEach((field) => { const update = () => { const target = tableTarget(field); const col = Number(field.dataset.tableCol); if (field.dataset.tableCell === 'header') { target.headers[col] = field.value; } else { const row = Number(field.dataset.tableRow); target.rows[row][col] = field.value; } refreshEditorCanvas(); }; field.addEventListener('input', update); });
+  blockProperties.querySelectorAll('[data-table-cell]').forEach((field) => { const update = () => { const target = tableTarget(field); if (!target) return; const col = Number(field.dataset.tableCol); if (field.dataset.tableCell === 'header') { target.headers[col] = field.value; } else { const row = Number(field.dataset.tableRow); if (target.rows[row]) target.rows[row][col] = field.value; } refreshEditorCanvas(); }; field.addEventListener('input', update); });
   blockProperties.querySelectorAll('[data-table-action]').forEach((button) => button.addEventListener('click', () => { const target = tableTarget(button); const index = Number(button.dataset.tableIndex); if (button.dataset.tableAction === 'add-row' && target.rows.length < 40) target.rows.push(target.headers.map(() => '')); if (button.dataset.tableAction === 'remove-row') target.rows.splice(index, 1); if (button.dataset.tableAction === 'add-col' && target.headers.length < 8) { target.headers.push(`Столбец ${target.headers.length + 1}`); target.rows.forEach((row) => row.push('')); } if (button.dataset.tableAction === 'remove-col' && target.headers.length > 1) { target.headers.splice(index, 1); target.rows.forEach((row) => row.splice(index, 1)); } renderBlockInspector(); refreshEditorCanvas(); }));
   blockProperties.querySelectorAll('[data-add-step-item]').forEach((button) => button.addEventListener('click', () => { if (block.text && !block.items.length) { block.items.push({ id: crypto.randomUUID(), type: 'text', text: block.text }); block.text = ''; } const item = { id: crypto.randomUUID(), type: button.dataset.addStepItem }; if (item.type === 'text') item.text = 'Добавьте текст.'; if (item.type === 'code') Object.assign(item, { language: 'bash', code: '' }); if (item.type === 'note') Object.assign(item, { title: 'Важно', text: '', variant: 'warning' }); if (item.type === 'image') Object.assign(item, { src: '', alt: '' }); if (item.type === 'table') Object.assign(item, defaultTable()); block.items.push(item); renderBlockInspector(); refreshEditorCanvas(); }));
   blockProperties.querySelector('[data-migrate-step-text]')?.addEventListener('click', () => { block.items.push({ id: crypto.randomUUID(), type: 'text', text: block.text }); block.text = ''; renderBlockInspector(); refreshEditorCanvas(); });
@@ -503,11 +558,11 @@ function renderBlockInspector() {
   blockProperties.querySelectorAll('[data-remove-tab]').forEach((button) => button.addEventListener('click', () => { block.tabs.splice(Number(button.dataset.removeTab), 1); renderBlockInspector(); refreshEditorCanvas(); }));
 }
 function resetEditor() {
-  currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
+  currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#page-block-spacing').value = 'normal'; fillIconOptions(document.querySelector('#page-manual-icon'), 'book'); document.querySelector('#page-manual-icon-file').value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
 }
 function setEditorMessage(message, kind = 'success') { editorMessage.textContent = message; editorMessage.dataset.kind = kind; }
 function hydrateEditor(manual) {
-  currentManual = structuredClone(manual); selectedBlockId = null; pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
+  currentManual = structuredClone(manual); selectedBlockId = null; pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; document.querySelector('#page-block-spacing').value = manual.blockSpacing || 'normal'; fillIconOptions(document.querySelector('#page-manual-icon'), manual.icon || 'book'); document.querySelector('#page-manual-icon-file').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
 }
 function renderPicker() {
   const picker = document.querySelector('#manual-picker'); picker.replaceChildren();
@@ -518,7 +573,23 @@ function renderPicker() {
 function fillIconOptions(select, selected = 'book') {
   select.replaceChildren();
   iconChoices.filter(([id]) => id !== 'chevron').forEach(([id, label]) => { const option = document.createElement('option'); option.value = id; option.textContent = label; select.append(option); });
+  if (typeof selected === 'string' && selected.startsWith('data:image/')) { const option = document.createElement('option'); option.value = selected; option.textContent = 'Загруженная иконка'; select.append(option); }
   select.value = selected;
+}
+async function readCustomIcon(file) {
+  if (!file) return '';
+  if (file.size > 48 * 1024) throw new Error('Размер иконки не должен превышать 48 КБ.');
+  if (!['image/png','image/jpeg','image/webp','image/svg+xml'].includes(file.type)) throw new Error('Поддерживаются PNG, JPEG, WebP и SVG.');
+  if (file.type === 'image/svg+xml') {
+    const source = await file.text();
+    const parsed = new DOMParser().parseFromString(source, 'image/svg+xml');
+    if (parsed.querySelector('parsererror') || parsed.documentElement.localName !== 'svg' || parsed.querySelector('script,foreignObject,iframe,object,embed,image')) throw new Error('SVG содержит неподдерживаемые или небезопасные элементы.');
+    for (const element of parsed.querySelectorAll('*')) for (const attribute of element.attributes) {
+      if (/^on/i.test(attribute.name) || /javascript:|url\s*\(/i.test(attribute.value) || /^(?:href|xlink:href)$/i.test(attribute.name) && !attribute.value.startsWith('#')) throw new Error('SVG может содержать только локальные векторные элементы.');
+    }
+    if (/<!DOCTYPE|<!ENTITY/i.test(source)) throw new Error('В SVG запрещены внешние сущности.');
+  }
+  return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error('Не удалось прочитать файл иконки.')); reader.readAsDataURL(file); });
 }
 function renderCategoryOptions(selected = pageCategory.value) {
   pageCategory.replaceChildren();
@@ -550,8 +621,9 @@ function renderSidebarManager() {
       const fields = make('div', 'manager-section-fields'); const nameLabel = make('label', 'inspector-field', 'Название подраздела'); const name = document.createElement('input'); name.maxLength = 40; name.value = section.title; name.dataset.sectionTitle = ''; nameLabel.append(name);
       const groupLabel = make('label', 'inspector-field', 'Группа'); const sectionGroup = document.createElement('select'); sectionGroup.dataset.sectionGroup = ''; navigationGroups.forEach((item) => { const option = document.createElement('option'); option.value = item.id; option.textContent = item.title; sectionGroup.append(option); }); sectionGroup.value = section.groupId; groupLabel.append(sectionGroup);
       const iconLabel = make('label', 'inspector-field', 'Иконка'); const iconSelect = document.createElement('select'); iconSelect.dataset.sectionIcon = ''; fillIconOptions(iconSelect, section.icon); iconLabel.append(iconSelect);
+      const iconUploadLabel = make('label', 'inspector-field icon-upload-field', 'Загрузить свою иконку'); const iconUpload = document.createElement('input'); iconUpload.type = 'file'; iconUpload.accept = 'image/png,image/jpeg,image/webp,image/svg+xml'; iconUpload.dataset.sectionIconFile = ''; iconUploadLabel.append(iconUpload, make('small', '', 'До 48 КБ · PNG, JPEG, WebP, SVG'));
       const colorLabel = make('label', 'inspector-field color-field', 'Цвет подраздела'); const colorInput = document.createElement('input'); colorInput.type = 'color'; colorInput.value = sectionColor(section); colorInput.dataset.sectionColor = ''; colorLabel.append(colorInput);
-      const preview = make('span', 'manager-icon-preview'); preview.style.color = sectionColor(section); preview.style.borderColor = sectionColor(section); preview.append(iconElement(section.icon)); fields.append(nameLabel, groupLabel, iconLabel, colorLabel, preview); card.append(fields);
+      const preview = make('span', 'manager-icon-preview'); preview.style.color = sectionColor(section); preview.style.borderColor = sectionColor(section); preview.append(iconElement(section.icon)); fields.append(nameLabel, groupLabel, iconLabel, iconUploadLabel, colorLabel, preview); card.append(fields);
       const presetRow = make('div', 'color-preset-row'); presetRow.append(make('small', 'color-preset-caption', 'Быстрый выбор цвета'));
       const presetGrid = make('div', 'color-preset-grid');
       sectionColorPresets.forEach(([label, value]) => { const swatch = make('button', 'color-preset'); swatch.type = 'button'; swatch.dataset.colorPreset = value; swatch.title = `${label} · ${value}`; swatch.setAttribute('aria-label', `${label}, ${value}`); swatch.setAttribute('aria-pressed', String(sectionColor(section).toLowerCase() === value)); swatch.style.setProperty('--swatch', value); presetGrid.append(swatch); });
@@ -603,6 +675,7 @@ document.querySelector('#sidebar-manager-groups').addEventListener('change', asy
   if (group && event.target.matches('[data-group-icon]')) { group.icon = event.target.value; await persistNavigation('Иконка группы обновлена.'); return; }
   const card = event.target.closest('.manager-section'); if (!card) return; const section = navigationSections.find((item) => item.id === card.dataset.sectionId); if (!section) return;
   if (event.target.matches('[data-section-group]')) { const groupId = event.target.value; const nextGroup = navigationGroups.find((item) => item.id === groupId); if (!nextGroup || navigationSections.some((item) => item.id !== section.id && item.groupId === groupId && item.title.toLocaleLowerCase('ru') === section.title.toLocaleLowerCase('ru'))) { event.target.value = section.groupId; document.querySelector('#navigation-message').textContent = 'В этой группе уже есть подраздел с таким названием.'; return; } section.groupId = groupId; await persistNavigation('Подраздел перемещён в другую группу.'); return; }
+  if (event.target.matches('[data-section-icon-file]')) { try { section.icon = await readCustomIcon(event.target.files?.[0]); await persistNavigation('Своя иконка раздела загружена.'); } catch (error) { document.querySelector('#navigation-message').textContent = error.message; } return; }
   if (event.target.matches('[data-section-title]')) { const title = event.target.value.trim(); if (!title || navigationSections.some((item) => item.id !== section.id && item.groupId === section.groupId && item.title.toLocaleLowerCase('ru') === title.toLocaleLowerCase('ru'))) { event.target.value = section.title; document.querySelector('#navigation-message').textContent = 'Укажи уникальное название подраздела в этой группе.'; return; } section.title = title; }
   if (event.target.matches('[data-section-icon]')) section.icon = event.target.value;
   if (event.target.matches('[data-section-color]')) section.color = event.target.value;
@@ -657,6 +730,7 @@ document.querySelector('#page-properties').addEventListener('input', () => { con
 pageTitle.addEventListener('input', () => { if (!pageSlug.dataset.edited) pageSlug.value = pageTitle.value.toLowerCase().replace(/[а-яё]/g, (char) => ({'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}[char])).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); refreshEditorCanvas(); });
 pageSlug.addEventListener('input', () => { pageSlug.dataset.edited = 'true'; });
 document.querySelector('#page-category').addEventListener('change', refreshEditorCanvas);
+document.querySelector('#page-manual-icon-file').addEventListener('change', async (event) => { try { const icon = await readCustomIcon(event.target.files?.[0]); if (!icon) return; fillIconOptions(document.querySelector('#page-manual-icon'), icon); refreshEditorCanvas(); setEditorMessage('Иконка мануала загружена. Сохраните мануал, чтобы применить её.'); } catch (error) { setEditorMessage(error.message, 'error'); } finally { event.target.value = ''; } });
 document.querySelectorAll('[data-add-block]').forEach((button) => button.addEventListener('click', () => {
   if (!currentManual) currentManual = { id: null, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim(), description: pageDescription.value.trim(), status: 'draft', blocks: [] };
   if (button.dataset.addBlock === 'data' && currentManual.blocks.some((block) => block.type === 'data')) return setEditorMessage('В одном мануале может быть одна форма «Твои данные».', 'error');

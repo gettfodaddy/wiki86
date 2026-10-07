@@ -24,6 +24,18 @@ const defaultNavigation = [
   { id: 'security', groupId: 'manuals', title: 'Безопасность', icon: 'shield', color: defaultSectionColors.security, manualIds: [] }
 ];
 const iconNames = new Set(['book','network','cloud','shield','globe','terminal','spark','heading','text','list','code','alert','image','panel']);
+function validIcon(value) {
+  if (iconNames.has(value)) return true;
+  if (typeof value !== 'string' || value.length > 66000) return false;
+  const match = value.match(/^data:image\/(png|jpeg|webp|svg\+xml);base64,([A-Za-z0-9+/]+={0,2})$/);
+  if (!match) return false;
+  const bytes = Buffer.from(match[2], 'base64'); if (!bytes.length || bytes.length > 48 * 1024) return false;
+  if (match[1] === 'png') return bytes.length > 8 && bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+  if (match[1] === 'jpeg') return bytes.length > 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+  if (match[1] === 'webp') return bytes.length > 12 && bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP';
+  const svg = bytes.toString('utf8');
+  return /^\s*(?:<\?xml[^>]*>\s*)?<svg\b/i.test(svg) && !/<!DOCTYPE|<!ENTITY|<(?:script|foreignObject|iframe|object|embed|image)\b|\bon[a-z]+\s*=|javascript:|url\s*\(|(?:href|xlink:href)\s*=\s*["'](?!#)/i.test(svg);
+}
 let categories = new Set(defaultNavigation.map((section) => section.id));
 const blockTypes = new Set(['heading', 'text', 'step', 'accordion', 'tabs', 'code', 'note', 'data', 'image', 'table', 'divider']);
 const stepItemTypes = new Set(['text', 'code', 'note', 'image', 'table', 'divider']);
@@ -98,15 +110,20 @@ function safeManual(input, previous = {}) {
   const category = String(input.category || '');
   const slug = String(input.slug || '').trim().toLowerCase();
   const description = String(input.description || '').trim().slice(0, 500);
+  const icon = String(input.icon ?? previous.icon ?? 'book');
+  if (!validIcon(icon)) throw new Error('Иконка мануала должна быть встроенной или безопасным изображением до 48 КБ.');
+  const blockSpacing = ['compact', 'normal', 'relaxed'].includes(input.blockSpacing) ? input.blockSpacing : 'normal';
   const status = input.status === 'published' ? 'published' : 'draft';
   if (!title || !categories.has(category) || slug.length > 60 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error('Enter a title, valid category and URL slug (up to 60 characters).');
   if (!Array.isArray(input.blocks) || input.blocks.length > 150) throw new Error('Invalid block list.');
   const blocks = input.blocks.map((raw) => {
     if (!raw || !blockTypes.has(raw.type)) throw new Error('Unknown block type.');
     const block = { id: String(raw.id || randomUUID()).slice(0, 60), type: raw.type };
-    for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant', 'number', 'icon']) {
+    for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant', 'number']) {
       if (raw[key] !== undefined) block[key] = String(raw[key]).slice(0, key === 'code' || key === 'text' ? 30000 : 500);
     }
+    if (raw.icon !== undefined) { const blockIcon = String(raw.icon); if (!validIcon(blockIcon)) throw new Error('Иконка блока недопустима.'); block.icon = blockIcon; }
+    if (raw.type === 'step') { if (raw.showTitle !== undefined) block.showTitle = raw.showTitle !== false; if (raw.showNumber !== undefined) block.showNumber = raw.showNumber !== false; }
     if (raw.type === 'step' && Array.isArray(raw.items)) {
       if (raw.items.length > 50) throw new Error('A step can contain at most 50 items.');
       block.items = raw.items.map((item) => {
@@ -147,7 +164,10 @@ function safeManual(input, previous = {}) {
     return block;
   });
   if (blocks.filter((block) => block.type === 'data').length > 1) throw new Error('A manual can contain only one data form.');
-  return { id: previous.id || String(input.id || randomUUID()), title, category, slug, path: `/manual/${category}/${slug}`, description, status, blocks, createdAt: previous.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+  const before = { title: previous.title, category: previous.category, slug: previous.slug, description: previous.description || '', icon: previous.icon || 'book', blockSpacing: previous.blockSpacing || 'normal', blocks: previous.blocks || [] };
+  const after = { title, category, slug, description, icon, blockSpacing, blocks };
+  const updated = previous.updated === true || Boolean(previous.id && previous.status === 'published' && status === 'published' && JSON.stringify(before) !== JSON.stringify(after));
+  return { id: previous.id || String(input.id || randomUUID()), title, category, slug, path: `/manual/${category}/${slug}`, description, icon, blockSpacing, status, updated, blocks, createdAt: previous.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
 }
 
 const server = createServer(async (req, res) => {
@@ -196,7 +216,7 @@ const server = createServer(async (req, res) => {
           if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || ids.has(id)) throw new Error('Идентификаторы разделов должны быть уникальными.');
           const groupId = String(raw.groupId || ''); const normalizedTitle = `${groupId}:${title.toLocaleLowerCase('ru')}`;
           if (!title || sectionTitles.has(normalizedTitle) || !groupIds.has(groupId)) throw new Error('Укажи уникальное название подраздела и существующую группу.');
-          if (!iconNames.has(icon)) throw new Error('Выбрана неизвестная иконка.');
+          if (!validIcon(icon)) throw new Error('Иконка подраздела должна быть встроенной или безопасным изображением до 48 КБ.');
           if (!/^#[\da-f]{6}$/i.test(color)) throw new Error('Цвет подраздела должен быть в формате HEX.');
           ids.add(id); sectionTitles.add(normalizedTitle);
           const manualIds = Array.isArray(raw.manualIds) ? [...new Set(raw.manualIds.map(String))].slice(0, 1000) : [];
