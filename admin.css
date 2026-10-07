@@ -108,3 +108,24 @@ body{font-family:Inter,"Segoe UI Variable","Segoe UI",Arial,sans-serif;font-size
 .builder-view .editor-data-form .field{font-size:10px}
 .builder-view .editor-data-form .field code{font-size:9px}
 .builder-view .data-editor-value{font-size:11px}
+.block-spacing-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;padding:10px 13px;border:1px solid #2c3c56;border-radius:10px;background:#111a2b;color:#aebbd0;font-size:11px}
+.spacing-toolbar-help{flex:1 1 280px;color:#aebbd0}
+.spacing-selection-count{padding:4px 8px;border:1px solid #344760;border-radius:7px;background:#17243a;color:#8fdbc9;font:10px 'IBM Plex Mono',monospace;white-space:nowrap}
+.block-spacing-toolbar label{display:flex;align-items:center;gap:7px;color:#d3deef;font-weight:700;white-space:nowrap}
+.block-spacing-toolbar input{width:82px;padding:7px 9px;border:1px solid #344760;border-radius:7px;background:#0d1424;color:#edf3ff;font:12px Inter,sans-serif}
+.block-spacing-toolbar button{padding:8px 11px;border:1px solid #3c8b77;border-radius:7px;background:#185341;color:#caffef;font:700 11px Inter,sans-serif;cursor:pointer}
+.block-spacing-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+.spacing-select-block{display:flex;align-items:center;gap:4px;margin-right:5px;color:#aab8cd;font:9px Inter,sans-serif;white-space:nowrap;cursor:pointer}
+.spacing-select-block input{width:14px;height:14px;margin:0;accent-color:#66d8ba;cursor:pointer}
+.page-canvas .published-blocks{gap:0}
+.published-blocks{row-gap:0!important}
+.nav-section .section-toggle{gap:8px}
+.section-heading-name{display:grid;min-width:0;flex:1;gap:3px;align-content:center}
+.section-heading-name .section-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none;font-size:12px}
+.section-updates{display:inline-flex;align-items:center;gap:4px;width:max-content;max-width:100%;padding:2px 6px;border:1px solid #755327;border-radius:6px;background:#49341d;color:#ffc66e;font-size:9px;font-weight:700;line-height:1.25;white-space:nowrap}
+.section-updates:before{content:"";width:5px;height:5px;border-radius:50%;background:#f0a542}
+.section-updates[hidden]{display:none}
+.section-count{flex:none}
+.manual-link-title{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.manual-update-badge{flex:none;padding:2px 5px;border:1px solid #8c5b27;border-radius:5px;background:#70461e;color:#ffe0a3;font-size:8px;font-weight:800;line-height:1.2}
+@media(max-width:620px){.block-spacing-toolbar{gap:8px}.spacing-toolbar-help{flex-basis:100%}}

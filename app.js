@@ -25,6 +25,7 @@ const routeViews = { '/': document.querySelector('#welcome-view'), '/admin': doc
 let manuals = [];
 let currentManual = null;
 let selectedBlockId = null;
+const selectedSpacingBlockIds = new Set();
 let adminAuthenticated = false;
 
 async function api(url, options = {}) {
@@ -237,9 +238,9 @@ function renderManualLinks() {
       const section = make('section', `nav-section section-${['remna','protocols','cdn','security'][sectionIndex % 4]}`); section.dataset.section = data.id;
       const color = sectionColor(data); section.style.setProperty('--accent', color); section.style.setProperty('--border', `color-mix(in srgb, ${color} 55%, #172033)`); section.style.setProperty('--wash', `color-mix(in srgb, ${color} 18%, #171c2c)`); section.style.setProperty('--icon-bg', `color-mix(in srgb, ${color} 20%, #152338)`);
       const toggle = make('button', 'section-toggle'); toggle.type = 'button'; toggle.setAttribute('aria-expanded', String(openSections.has(data.id)));
-      const icon = make('span', 'section-icon'); icon.append(iconElement(data.icon)); const name = make('span', 'section-name', data.title);
+      const icon = make('span', 'section-icon'); icon.append(iconElement(data.icon)); const name = make('span', 'section-name', data.title); const nameWrap = make('span', 'section-heading-name'); nameWrap.append(name);
       const rows = sortedSectionManuals(data); const count = make('span', 'section-count', String(rows.length)); const updatedCount = rows.filter((manual) => manual.updated).length; const updates = make('span', 'section-updates', `Обновлений: ${updatedCount}`); updates.hidden = updatedCount === 0; const chevron = iconElement('chevron', 'icon chevron');
-      toggle.append(icon, name, count, updates, chevron); toggle.title = data.title;
+      if (updatedCount) nameWrap.append(updates); toggle.append(icon, nameWrap, count, chevron); toggle.title = data.title;
       const items = make('div', 'section-items'); items.hidden = !openSections.has(data.id);
       const list = make('div', 'manual-list');
       rows.forEach((manual) => {
@@ -290,7 +291,8 @@ function renderPublishedManual(manual) {
   const dataBlock = manual.blocks.find((block) => block.type === 'data');
   if (!dataBlock && manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); root.append(dataPanel); updateDataPreview(root); }
   const content = make('div', 'published-blocks');
-  content.style.setProperty('--manual-block-gap', `${normalizeBlockSpacing(manual.blockSpacing)}px`);
+  const defaultGap = normalizeBlockSpacing(manual.blockSpacing);
+  content.style.setProperty('--manual-block-gap', `${defaultGap}px`);
   manual.blocks.forEach((block, index) => {
     let element;
     if (block.type === 'data') { element = createDataForm(block.fields || defaultDataFields()); }
@@ -304,8 +306,9 @@ function renderPublishedManual(manual) {
     else if (block.type === 'table') { element = renderTable(block); }
     else if (block.type === 'image') { element = make('figure', 'published-image'); const src = validImageSource(block.src) ? block.src : ''; if (src) { const img = document.createElement('img'); img.src = src; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); } else element.append(make('div', 'image-placeholder', 'Добавьте HTTPS-ссылку или SVG-файл из /assets/')); if (block.alt) element.append(make('figcaption', '', block.alt)); }
     else element = make('hr', 'published-divider');
-  element.dataset.blockId = block.id; content.append(element);
+  element.dataset.blockId = block.id; element.style.marginBottom = `${normalizeBlockSpacing(block.spacingAfter ?? defaultGap)}px`; content.append(element);
   });
+  if (content.lastElementChild) content.lastElementChild.style.marginBottom = '0px';
   root.append(content);
 }
 
@@ -341,7 +344,7 @@ function defaultBlock(type) {
   if (type === 'table') return { ...common, ...defaultTable() };
   return common;
 }
-function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), icon: document.querySelector('#page-manual-icon').value || 'book', blockSpacing: normalizeBlockSpacing(document.querySelector('#page-block-spacing').value), status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
+function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), icon: document.querySelector('#page-manual-icon').value || 'book', blockSpacing: normalizeBlockSpacing(currentManual?.blockSpacing ?? 14), status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
 function normalizeBlockSpacing(value) { const legacy = { compact: 8, normal: 14, relaxed: 24 }; const parsed = Number.isFinite(Number(value)) ? Number(value) : legacy[value]; return Math.max(0, Math.min(80, Math.round(parsed ?? 14))); }
 function refreshEditorCanvas() {
   const data = currentPageData(); editorCanvas.replaceChildren();
@@ -351,6 +354,7 @@ function refreshEditorCanvas() {
   data.blocks.forEach((block, index) => {
     const card = make('article', `editor-block editor-block-${block.type}${block.type === 'note' ? ` note-${block.variant || 'warning'}` : ''}${selectedBlockId === block.id ? ' selected' : ''}`); card.dataset.blockId = block.id;
     const tools = make('div', 'editor-block-tools'); tools.append(make('span', 'editor-block-label', `${String(index + 1).padStart(2, '0')} · ${blockNames[block.type]}`));
+    const spacingSelect = make('label', 'spacing-select-block'); const spacingCheckbox = document.createElement('input'); spacingCheckbox.type = 'checkbox'; spacingCheckbox.checked = selectedSpacingBlockIds.has(block.id); spacingCheckbox.dataset.spacingSelect = block.id; spacingCheckbox.setAttribute('aria-label', `Выбрать блок «${blockNames[block.type]}» для настройки отступа`); spacingSelect.append(spacingCheckbox, make('span', '', 'Отступ')); tools.append(spacingSelect);
     [['up','<path d="m6 14 6-6 6 6"/>'],['down','<path d="m6 10 6 6 6-6"/>'],['edit','<path d="m14 5 5 5M4 20l4.2-.9L19 8.3 15.7 5 4.9 15.8 4 20Z"/>'],['delete','<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>']].forEach(([action, path]) => { const button = make('button', 'block-action', ''); button.type = 'button'; button.dataset.blockAction = action; button.title = ({up:'Переместить выше',down:'Переместить ниже',edit:'Редактировать',delete:'Удалить'})[action]; button.setAttribute('aria-label', button.title); button.innerHTML = `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24">${path}</svg>`; button.disabled = (action === 'up' && index === 0) || (action === 'down' && index === data.blocks.length - 1); tools.append(button); });
     card.append(tools);
     if (block.type === 'heading') card.append(templateText(block.level === '3' ? 'h3' : 'h2', '', block.title || 'Заголовок'));
@@ -381,13 +385,15 @@ function refreshEditorCanvas() {
     if (block.type === 'image') { if (validImageSource(block.src)) { const img = document.createElement('img'); img.src = block.src; img.alt = block.alt || ''; img.className = 'editor-image-preview'; card.append(img); } else card.append(make('div', 'image-placeholder', 'Вставь HTTPS-ссылку или путь /assets/*.svg в свойствах блока')); card.append(make('p', '', block.alt || 'Изображение')); }
     if (block.type === 'divider') card.append(make('hr'));
     if (block.type === 'table') card.append(renderTable(block));
-    card.addEventListener('click', (event) => { if (event.target.closest('button,summary,[contenteditable="true"]')) return; selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); });
+    card.style.marginTop = index === 0 ? '0px' : `${normalizeBlockSpacing(data.blocks[index - 1].spacingAfter ?? data.blockSpacing)}px`;
+    card.addEventListener('click', (event) => { if (event.target.closest('button,input,summary,[contenteditable="true"]')) return; selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); });
     editorCanvas.append(card);
   });
   if (!data.blocks.length) { const empty = make('p', 'editor-no-blocks', 'Нажми на тип блока слева, чтобы начать собирать инструкцию.'); editorCanvas.append(empty); }
   const path = data.slug && data.category ? `/manual/${data.category}/${data.slug}` : 'URL появится после заполнения раздела и slug';
   document.querySelector('#editor-url').textContent = path.startsWith('/') ? `${location.origin}${path}` : path;
   editorCanvas.style.setProperty('--manual-block-gap', `${data.blockSpacing}px`);
+  updateSpacingSelectionUI();
   document.querySelector('#delete-manual').hidden = !currentManual?.id;
   document.querySelector('#manual-picker').value = currentManual?.id || '';
 }
@@ -559,11 +565,11 @@ function renderBlockInspector() {
   blockProperties.querySelectorAll('[data-remove-tab]').forEach((button) => button.addEventListener('click', () => { block.tabs.splice(Number(button.dataset.removeTab), 1); renderBlockInspector(); refreshEditorCanvas(); }));
 }
 function resetEditor() {
-  currentManual = null; selectedBlockId = null; pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; document.querySelector('#page-block-spacing').value = '14'; fillIconOptions(document.querySelector('#page-manual-icon'), 'book'); document.querySelector('#page-manual-icon-file').value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
+  currentManual = null; selectedBlockId = null; selectedSpacingBlockIds.clear(); pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; fillIconOptions(document.querySelector('#page-manual-icon'), 'book'); document.querySelector('#page-manual-icon-file').value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
 }
 function setEditorMessage(message, kind = 'success') { editorMessage.textContent = message; editorMessage.dataset.kind = kind; }
 function hydrateEditor(manual) {
-  currentManual = structuredClone(manual); selectedBlockId = null; pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; document.querySelector('#page-block-spacing').value = String(normalizeBlockSpacing(manual.blockSpacing)); fillIconOptions(document.querySelector('#page-manual-icon'), manual.icon || 'book'); document.querySelector('#page-manual-icon-file').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
+  currentManual = structuredClone(manual); selectedBlockId = null; selectedSpacingBlockIds.clear(); pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; fillIconOptions(document.querySelector('#page-manual-icon'), manual.icon || 'book'); document.querySelector('#page-manual-icon-file').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
 }
 function renderPicker() {
   const picker = document.querySelector('#manual-picker'); picker.replaceChildren();
@@ -727,7 +733,7 @@ loginForm.addEventListener('submit', async (event) => {
 document.querySelector('#logout-button').addEventListener('click', async () => { await api('/api/logout', { method: 'POST' }); adminAuthenticated = false; renderRoute('/admin'); });
 document.querySelector('.exit-constructor').addEventListener('click', () => { document.querySelector('#search').value = ''; });
 document.querySelector('#manual-picker').addEventListener('change', (event) => { if (!event.target.value) resetEditor(); else { const manual = manuals.find((item) => item.id === event.target.value); if (manual) hydrateEditor(manual); } });
-  document.querySelector('#page-properties').addEventListener('input', () => { const slug = pageSlug.value.trim().toLowerCase(); pageSlug.value = slug; const gap = document.querySelector('#page-block-spacing'); gap.value = String(normalizeBlockSpacing(gap.value)); refreshEditorCanvas(); });
+document.querySelector('#page-properties').addEventListener('input', () => { const slug = pageSlug.value.trim().toLowerCase(); pageSlug.value = slug; refreshEditorCanvas(); });
 pageTitle.addEventListener('input', () => { if (!pageSlug.dataset.edited) pageSlug.value = pageTitle.value.toLowerCase().replace(/[а-яё]/g, (char) => ({'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'}[char])).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); refreshEditorCanvas(); });
 pageSlug.addEventListener('input', () => { pageSlug.dataset.edited = 'true'; });
 document.querySelector('#page-category').addEventListener('change', refreshEditorCanvas);
@@ -786,6 +792,38 @@ async function saveManual(status) {
     if (status === 'published') { const select = document.querySelector('#manual-picker'); select.value = saved.id; }
   } catch (error) { setEditorMessage(error.message, 'error'); }
 }
+function updateSpacingSelectionUI() {
+  const count = selectedSpacingBlockIds.size;
+  const countLabel = document.querySelector('#spacing-selection-count');
+  const gapInput = document.querySelector('#selected-block-gap');
+  const applyButton = document.querySelector('#apply-selected-block-gap');
+  if (countLabel) countLabel.textContent = `${count} выбрано`;
+  if (applyButton) applyButton.disabled = count === 0;
+  if (gapInput) {
+    const blocks = currentManual?.blocks || [];
+    const indexes = blocks.map((block, index) => selectedSpacingBlockIds.has(block.id) ? index : -1).filter((index) => index >= 0);
+    const affected = indexes.length > 1 ? blocks.slice(indexes[0], indexes[indexes.length - 1]) : indexes.length ? [blocks[indexes[0]]] : [];
+    const values = [...new Set(affected.map((block) => normalizeBlockSpacing(block.spacingAfter ?? currentManual?.blockSpacing)))];
+    if (values.length === 1) gapInput.value = String(values[0]);
+  }
+}
+document.querySelector('#apply-selected-block-gap')?.addEventListener('click', () => {
+  const gap = normalizeBlockSpacing(document.querySelector('#selected-block-gap').value);
+  if (!currentManual || !selectedSpacingBlockIds.size) return;
+  const indexes = currentManual.blocks.map((block, index) => selectedSpacingBlockIds.has(block.id) ? index : -1).filter((index) => index >= 0);
+  const first = indexes[0]; const last = indexes[indexes.length - 1];
+  const end = indexes.length > 1 ? last : last + 1;
+  currentManual.blocks.slice(first, end).forEach((block) => { block.spacingAfter = gap; });
+  refreshEditorCanvas();
+  setEditorMessage(`Отступ ${gap} px применён между отмеченными блоками. Сохрани черновик или опубликуй мануал.`);
+});
+editorCanvas.addEventListener('change', (event) => {
+  const checkbox = event.target.closest('[data-spacing-select]');
+  if (!checkbox) return;
+  if (checkbox.checked) selectedSpacingBlockIds.add(checkbox.dataset.spacingSelect);
+  else selectedSpacingBlockIds.delete(checkbox.dataset.spacingSelect);
+  updateSpacingSelectionUI();
+});
 document.querySelector('#save-draft').addEventListener('click', () => saveManual(currentManual?.status === 'published' ? 'published' : 'draft'));
 document.querySelector('#publish-manual').addEventListener('click', () => saveManual('published'));
 document.querySelector('#delete-manual').addEventListener('click', async () => {

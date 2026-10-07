@@ -121,6 +121,7 @@ function safeManual(input, previous = {}) {
   const blocks = input.blocks.map((raw) => {
     if (!raw || !blockTypes.has(raw.type)) throw new Error('Unknown block type.');
     const block = { id: String(raw.id || randomUUID()).slice(0, 60), type: raw.type };
+    if (raw.spacingAfter !== undefined) { const spacing = Number(raw.spacingAfter); block.spacingAfter = Number.isFinite(spacing) ? Math.max(0, Math.min(80, Math.round(spacing))) : 14; }
     for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant', 'number']) {
       if (raw[key] !== undefined) block[key] = String(raw[key]).slice(0, key === 'code' || key === 'text' ? 30000 : 500);
     }
