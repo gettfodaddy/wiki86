@@ -20,7 +20,7 @@ let navigationGroups = structuredClone(defaultGroups);
 let navigationSections = structuredClone(defaultSections);
 let categories = Object.fromEntries(navigationSections.map((section) => [section.id, section.title]));
 const openSections = new Set();
-const blockNames = { heading: 'Заголовок', text: 'Текст', step: 'Шаг инструкции', code: 'Команда / код', note: 'Примечание', data: 'Форма «Твои данные»', image: 'Изображение', divider: 'Разделитель' };
+const blockNames = { heading: 'Заголовок', text: 'Текст', step: 'Шаг инструкции', accordion: 'Сворачиваемый раздел', code: 'Команда / код', note: 'Примечание', data: 'Форма «Твои данные»', image: 'Изображение', divider: 'Разделитель' };
 const routeViews = { '/': document.querySelector('#welcome-view'), '/admin': document.querySelector('#admin-view') };
 let manuals = [];
 let currentManual = null;
@@ -61,6 +61,7 @@ function openCategory(category) {
 }
 function renderRoute(path, { scroll = true } = {}) {
   const currentPath = normalizePath(path);
+  document.body.classList.toggle('constructor-mode', currentPath === '/admin');
   const custom = manuals.find((manual) => manual.path === currentPath && manual.status === 'published');
   const view = routeViews[currentPath] || (custom ? document.querySelector('#generated-manual-view') : document.querySelector('#not-found-view'));
   Object.values(routeViews).forEach((item) => { item.hidden = item !== view; });
@@ -87,6 +88,7 @@ function renderRoute(path, { scroll = true } = {}) {
 document.addEventListener('click', (event) => {
   const link = event.target.closest('[data-route]');
   if (!link || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  if (link.target === '_blank' && location.protocol !== 'file:') return;
   event.preventDefault(); navigate(link.dataset.route || link.getAttribute('href'));
 });
 document.querySelector('.brand').addEventListener('click', (event) => { if (event.button === 0 && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey) { event.preventDefault(); navigate('/'); } });
@@ -115,13 +117,29 @@ function interpolate(value) {
     return resolved || token;
   });
 }
-function templateText(tag, className, source) { const node = make(tag, className, interpolate(source)); node.dataset.templateSource = source || ''; return node; }
+function renderRichText(node, source) {
+  const value = interpolate(source || '');
+  const pattern = /\*\*.+?\*\*|==.+?==|`.+?`|\*[^*\n]+\*/g;
+  node.replaceChildren(); let cursor = 0;
+  for (const match of value.matchAll(pattern)) {
+    if (match.index > cursor) node.append(document.createTextNode(value.slice(cursor, match.index)));
+    const token = match[0]; let element;
+    if (token.startsWith('==')) { element = make('mark', 'rich-green', token.slice(2, -2)); }
+    else if (token.startsWith('**')) element = make('strong', 'rich-bold', token.slice(2, -2));
+    else if (token.startsWith('`')) element = make('code', 'rich-inline-code', token.slice(1, -1));
+    else element = make('em', 'rich-italic', token.slice(1, -1));
+    node.append(element); cursor = match.index + token.length;
+  }
+  if (cursor < value.length) node.append(document.createTextNode(value.slice(cursor)));
+  if (!value) node.append(document.createTextNode(''));
+}
+function templateText(tag, className, source, { rich = true } = {}) { const node = make(tag, className); node.dataset.templateSource = source || ''; node.dataset.templatePlain = String(!rich); if (rich) renderRichText(node, source); else node.textContent = interpolate(source); return node; }
 function refreshVariableTexts(root = document) {
-  root.querySelectorAll('[data-template-source]').forEach((node) => { node.textContent = interpolate(node.dataset.templateSource); });
+  root.querySelectorAll('[data-template-source]').forEach((node) => node.dataset.templatePlain === 'true' ? node.textContent = interpolate(node.dataset.templateSource) : renderRichText(node, node.dataset.templateSource));
 }
 function createDataForm(fields, { editor = false } = {}) {
-  const details = make('details', `user-data${editor ? ' editor-data-form' : ''}`); details.open = true;
-  const summary = make('summary'); summary.append(make('span', 'data-summary-icon', '✦'), make('span', 'data-summary-title', 'Твои данные'), make('span', 'data-summary-help', 'заполни один раз — значения подставятся по мануалу'));
+  const details = make('details', `user-data${editor ? ' editor-data-form' : ''}`); details.open = editor;
+  const summary = make('summary'); const icon = make('span', 'data-summary-icon'); icon.append(iconElement('terminal')); summary.append(icon, make('span', 'data-summary-title', 'Твои данные'), make('span', 'data-summary-help', 'заполни один раз — значения подставятся по мануалу'), iconElement('chevron', 'icon summary-arrow'));
   const content = make('div', 'data-content'); content.append(make('p', 'data-intro', editor ? 'Добавь поля и указывай их в тексте как {{ИМЯ_ПОЛЯ}}. Например: {{NODE_DOMAIN}}.' : 'Укажи значения для этой инструкции. Данные сохраняются только в этом браузере и не отправляются на сервер.'));
   const grid = make('div', 'data-grid');
   fields.forEach((field) => {
@@ -133,6 +151,21 @@ function createDataForm(fields, { editor = false } = {}) {
   content.append(grid);
   if (!editor) { const actions = make('div', 'data-actions'); const clear = make('button', 'text-button', 'Очистить поля'); clear.type = 'button'; clear.dataset.clearData = ''; actions.append(clear, make('span', '', 'сохраняется локально в твоём браузере'), make('span', 'save-indicator', 'Сохранено')); content.append(actions); }
   details.append(summary, content); return details;
+}
+function createAccordionBlock(block, { editor = false } = {}) {
+  if (block.collapsible === false) {
+    const section = make('section', `published-accordion accordion-static${editor ? ' editor-accordion' : ''}`);
+    const summary = make('div', 'accordion-summary'); const badge = make('span', 'accordion-number', block.number || '1'); const icon = make('span', 'accordion-icon'); icon.append(iconElement(block.icon || 'list'));
+    summary.append(icon, badge, templateText('strong', 'accordion-title', block.title || 'Как это работает'));
+    section.append(summary, templateText('div', 'accordion-content', block.text || 'Добавьте описание раздела.')); return section;
+  }
+  const details = make('details', `published-accordion${editor ? ' editor-accordion' : ''}`); details.open = editor;
+  const summary = make('summary', 'accordion-summary');
+  const badge = make('span', 'accordion-number', block.number || '1');
+  const icon = make('span', 'accordion-icon'); icon.append(iconElement(block.icon || 'list'));
+  summary.append(icon, badge, templateText('strong', 'accordion-title', block.title || 'Как это работает'), iconElement('chevron', 'icon summary-arrow'));
+  details.append(summary, templateText('div', 'accordion-content', block.text || 'Добавьте описание раздела.'));
+  return details;
 }
 document.addEventListener('input', (event) => {
   const field = event.target.closest('[data-value]'); if (!field) return;
@@ -211,12 +244,13 @@ function renderPublishedManual(manual) {
     if (block.type === 'data') { element = createDataForm(block.fields || defaultDataFields()); }
     else if (block.type === 'heading') { element = templateText(block.level === '3' ? 'h3' : 'h2', 'published-heading', block.title || 'Заголовок'); }
     else if (block.type === 'text') { element = templateText('p', 'published-text', block.text || ''); }
-    else if (block.type === 'step') { element = make('section', 'published-step'); element.append(make('span', 'step-number', String(index + 1).padStart(2, '0')), make('div', '', '')); element.lastChild.append(templateText('h2', '', block.title || `Шаг ${index + 1}`), templateText('p', '', block.text || '')); }
-    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '')); element.append(top, pre); }
+    else if (block.type === 'step') { element = make('section', 'published-step'); element.append(make('span', 'step-number', block.number || String(index + 1).padStart(2, '0')), make('div', '', '')); element.lastChild.append(templateText('h2', '', block.title || `Шаг ${index + 1}`), templateText('p', '', block.text || '')); }
+    else if (block.type === 'accordion') { element = createAccordionBlock(block); }
+    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '', { rich: false })); element.append(top, pre); }
     else if (block.type === 'note') { element = make('aside', `published-note note-${block.variant || 'warning'}`); element.append(make('span', 'note-mark', block.variant === 'success' ? '✓' : block.variant === 'info' ? 'i' : '!'), make('div', 'note-content', '')); element.lastChild.append(templateText('strong', '', block.title || 'Примечание'), templateText('p', '', block.text || '')); }
     else if (block.type === 'image') { element = make('figure', 'published-image'); const src = /^https:\/\//i.test(block.src || '') && !/example\.com/i.test(block.src) ? block.src : ''; if (src) { const img = document.createElement('img'); img.src = src; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); } else element.append(make('div', 'image-placeholder', 'Добавьте HTTPS-ссылку на изображение в редакторе')); if (block.alt) element.append(make('figcaption', '', block.alt)); }
     else element = make('hr', 'published-divider');
-    element.dataset.blockId = block.id; content.append(element);
+  element.dataset.blockId = block.id; content.append(element);
   });
   root.append(content);
 }
@@ -244,6 +278,7 @@ function defaultBlock(type) {
   if (type === 'heading') return { ...common, title: 'Новый раздел', level: '2' };
   if (type === 'text') return { ...common, text: 'Добавьте пояснение к инструкции.' };
   if (type === 'step') return { ...common, title: 'Новый шаг', text: 'Опишите действие и ожидаемый результат.' };
+  if (type === 'accordion') return { ...common, number: '1', icon: 'list', collapsible: true, title: 'Как это работает', text: 'Добавьте содержимое сворачиваемого раздела.' };
   if (type === 'code') return { ...common, language: 'bash', code: 'команда' };
   if (type === 'note') return { ...common, title: 'Важно', text: 'Добавьте важное примечание.', variant: 'warning' };
   if (type === 'data') return { ...common, fields: defaultDataFields() };
@@ -263,13 +298,20 @@ function refreshEditorCanvas() {
     card.append(tools);
     if (block.type === 'heading') card.append(templateText(block.level === '3' ? 'h3' : 'h2', '', block.title || 'Заголовок'));
     if (block.type === 'text') card.append(templateText('p', '', block.text || 'Текстовый блок'));
-    if (block.type === 'step') { card.append(templateText('h3', '', block.title || `Шаг ${index + 1}`), templateText('p', '', block.text || 'Описание шага')); }
-    if (block.type === 'code') { card.append(make('small', 'code-language', block.language || 'TEXT')); const pre = make('pre'); pre.append(templateText('code', '', block.code || '')); card.append(pre); }
+    if (block.type === 'step') {
+      const number = make('span', 'step-number editor-step-number', block.number || String(index + 1).padStart(2, '0'));
+      const stepContent = make('div', 'editor-step-content');
+      const title = templateText('h3', 'inline-editable', block.title || `Шаг ${index + 1}`); title.contentEditable = 'true'; title.dataset.inlineField = 'title'; title.setAttribute('role', 'textbox'); title.setAttribute('aria-label', 'Название шага — нажмите, чтобы изменить'); title.title = 'Нажмите, чтобы изменить название шага';
+      const text = templateText('p', 'inline-editable', block.text || 'Описание шага'); text.contentEditable = 'true'; text.dataset.inlineField = 'text'; text.setAttribute('role', 'textbox'); text.setAttribute('aria-label', 'Описание шага — нажмите, чтобы изменить'); text.title = 'Нажмите, чтобы изменить описание шага';
+      stepContent.append(title, text); card.append(number, stepContent);
+    }
+    if (block.type === 'accordion') card.append(createAccordionBlock(block, { editor: true }));
+    if (block.type === 'code') { card.append(make('small', 'code-language', block.language || 'TEXT')); const pre = make('pre'); pre.append(templateText('code', '', block.code || '', { rich: false })); card.append(pre); }
     if (block.type === 'note') card.append(templateText('strong', '', block.title || 'Примечание'), templateText('p', '', block.text || ''));
     if (block.type === 'data') card.append(createDataForm(block.fields || defaultDataFields(), { editor: true }));
     if (block.type === 'image') { if (/^https:\/\//i.test(block.src || '') && !/example\.com/i.test(block.src)) { const img = document.createElement('img'); img.src = block.src; img.alt = block.alt || ''; img.className = 'editor-image-preview'; card.append(img); } else card.append(make('div', 'image-placeholder', 'Вставь HTTPS-ссылку на изображение в свойствах блока')); card.append(make('p', '', block.alt || 'Изображение')); }
     if (block.type === 'divider') card.append(make('hr'));
-    card.addEventListener('click', (event) => { if (event.target.closest('button')) return; selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); });
+    card.addEventListener('click', (event) => { if (event.target.closest('button,summary,[contenteditable="true"]')) return; selectedBlockId = block.id; renderBlockInspector(); refreshEditorCanvas(); });
     editorCanvas.append(card);
   });
   if (!data.blocks.length) { const empty = make('p', 'editor-no-blocks', 'Нажми на тип блока слева, чтобы начать собирать инструкцию.'); editorCanvas.append(empty); }
@@ -287,8 +329,16 @@ function renderBlockInspector() {
   if (!block) { blockProperties.hidden = true; document.querySelector('#page-properties').hidden = false; return; }
   blockProperties.hidden = false; document.querySelector('#page-properties').hidden = true;
   const heading = make('div', 'inspector-heading'); heading.append(make('span', 'block-icon heading-icon', '✦')); const titles = make('div'); titles.append(make('small', '', 'РЕДАКТИРОВАНИЕ БЛОКА'), make('strong', '', blockNames[block.type])); heading.append(titles); blockProperties.append(heading);
-  if (block.type === 'heading' || block.type === 'step' || block.type === 'note') blockProperties.append(inputControl(block.type === 'note' ? 'Заголовок примечания' : 'Заголовок', 'title', block.title));
-  if (block.type === 'text' || block.type === 'step' || block.type === 'note') blockProperties.append(inputControl('Текст', 'text', block.text, { multiline: true, placeholder: 'Введите текст' }));
+  if (block.type === 'step') blockProperties.append(inputControl('Номер шага (можно оставить пустым для автонумерации)', 'number', block.number));
+  if (block.type === 'heading' || block.type === 'step' || block.type === 'note' || block.type === 'accordion') blockProperties.append(inputControl(block.type === 'note' ? 'Заголовок примечания' : 'Заголовок', 'title', block.title));
+  if (block.type === 'text' || block.type === 'step' || block.type === 'note' || block.type === 'accordion') blockProperties.append(inputControl(block.type === 'accordion' ? 'Содержимое раздела' : 'Текст', 'text', block.text, { multiline: true, placeholder: 'Введите текст' }));
+  if (block.type === 'accordion') {
+    blockProperties.append(inputControl('Номер на плашке', 'number', block.number));
+    const iconLabel = make('label', 'inspector-field', 'Иконка раздела'); const iconSelect = document.createElement('select'); iconSelect.dataset.blockField = 'icon';
+    iconChoices.filter(([id]) => ['book','network','cloud','shield','globe','terminal','spark','heading','text','list','code','alert','image','panel'].includes(id)).forEach(([id, title]) => { const option = document.createElement('option'); option.value = id; option.textContent = title; iconSelect.append(option); });
+    iconSelect.value = block.icon || 'list'; iconLabel.append(iconSelect); blockProperties.append(iconLabel);
+    const collapsible = make('label', 'toggle-field'); const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = block.collapsible !== false; checkbox.dataset.blockField = 'collapsible'; collapsible.append(checkbox, make('span', '', 'Раздел можно сворачивать')); blockProperties.append(collapsible);
+  }
   if (block.type === 'heading') { const selectLabel = make('label', 'inspector-field', 'Уровень заголовка'); const select = document.createElement('select'); select.dataset.blockField = 'level'; [['2','H2'],['3','H3']].forEach(([value,label]) => { const opt = document.createElement('option'); opt.value = value; opt.textContent = label; select.append(opt); }); select.value = block.level || '2'; selectLabel.append(select); blockProperties.append(selectLabel); }
   if (block.type === 'code') { blockProperties.append(inputControl('Язык блока', 'language', block.language, { placeholder: 'bash' }), inputControl('Команды и код', 'code', block.code, { multiline: true })); }
   if (block.type === 'image') blockProperties.append(inputControl('HTTPS-ссылка на изображение', 'src', block.src), inputControl('Alt-текст', 'alt', block.alt));
@@ -309,6 +359,15 @@ function renderBlockInspector() {
     const add = make('button', 'add-data-field', '＋ Добавить поле'); add.type = 'button'; add.dataset.addDataField = ''; add.disabled = block.fields.length >= 20; if (add.disabled) add.title = 'Максимум 20 полей'; blockProperties.append(add);
   }
   if (block.type !== 'data') {
+    blockProperties.querySelectorAll('[data-block-field="title"],[data-block-field="text"]').forEach((target) => {
+      const toolbar = make('div', 'format-toolbar'); toolbar.append(make('span', '', 'Формат текста'));
+      [['bold','Жирный','**','**'],['italic','Курсив','*','*'],['green','Зелёный акцент','==','=='],['code','Моноширинный','`','`']].forEach(([name, title, open, close]) => {
+        const button = make('button', `format-button format-${name}`, name === 'bold' ? 'B' : name === 'italic' ? 'I' : name === 'green' ? 'A' : '</>'); button.type = 'button'; button.title = title; button.setAttribute('aria-label', title);
+        if (name === 'bold') button.style.fontWeight = '800'; if (name === 'italic') button.style.fontStyle = 'italic';
+        button.addEventListener('click', () => { const start = target.selectionStart ?? target.value.length; const end = target.selectionEnd ?? start; const selection = target.value.slice(start, end) || 'текст'; target.focus(); target.setRangeText(`${open}${selection}${close}`, start, end, 'select'); target.dispatchEvent(new Event('input', { bubbles: true })); }); toolbar.append(button);
+      });
+      target.parentElement.after(toolbar, make('small', 'format-help', 'Выдели фрагмент и выбери оформление. Зелёный акцент также можно записать как ==текст==.'));
+    });
     const variables = currentManual?.blocks.find((item) => item.type === 'data')?.fields || [];
     if (variables.length) blockProperties.querySelectorAll('[data-block-field="text"],[data-block-field="code"],[data-block-field="title"]').forEach((target) => {
       const helper = make('div', 'variable-insert-helper'); helper.append(make('span', '', 'Вставить переменную:'));
@@ -316,7 +375,7 @@ function renderBlockInspector() {
       target.parentElement.after(helper);
     });
   }
-  blockProperties.querySelectorAll('[data-block-field]').forEach((field) => { const update = () => { const key = field.dataset.blockField; const match = key.match(/^field-(key|label|placeholder|help)-(\d+)$/); if (match) { const property = ({ key: 'key', label: 'label', placeholder: 'placeholder', help: 'help' })[match[1]]; const value = property === 'key' ? field.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 40) : field.value; field.value = value; block.fields[Number(match[2])][property] = value; const token = field.closest('.data-field-editor')?.querySelector('.variable-token'); if (token) token.textContent = `{{${value || 'FIELD'}}}`; } else block[key] = field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
+  blockProperties.querySelectorAll('[data-block-field]').forEach((field) => { const update = () => { const key = field.dataset.blockField; const match = key.match(/^field-(key|label|placeholder|help)-(\d+)$/); if (match) { const property = ({ key: 'key', label: 'label', placeholder: 'placeholder', help: 'help' })[match[1]]; const value = property === 'key' ? field.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 40) : field.value; field.value = value; block.fields[Number(match[2])][property] = value; const token = field.closest('.data-field-editor')?.querySelector('.variable-token'); if (token) token.textContent = `{{${value || 'FIELD'}}}`; } else block[key] = field.type === 'checkbox' ? field.checked : field.value; refreshEditorCanvas(); }; field.addEventListener('input', update); field.addEventListener('change', update); });
   blockProperties.querySelector('[data-add-data-field]')?.addEventListener('click', () => { block.fields.push({ key: `FIELD_${block.fields.length + 1}`, label: 'Новое поле', placeholder: '', help: '' }); renderBlockInspector(); refreshEditorCanvas(); });
   blockProperties.querySelectorAll('[data-remove-data-field]').forEach((button) => button.addEventListener('click', () => { block.fields.splice(Number(button.dataset.removeDataField), 1); renderBlockInspector(); refreshEditorCanvas(); }));
 }
@@ -489,6 +548,28 @@ editorCanvas.addEventListener('click', (event) => {
   else if (action === 'down' && index < currentManual.blocks.length - 1) { const [block] = currentManual.blocks.splice(index, 1); currentManual.blocks.splice(index + 1, 0, block); selectedBlockId = block.id; }
   else { selectedBlockId = card.dataset.blockId; }
   renderBlockInspector(); refreshEditorCanvas();
+});
+editorCanvas.addEventListener('input', (event) => {
+  const field = event.target.closest('[contenteditable="true"][data-inline-field]'); if (!field || !currentManual) return;
+  const card = field.closest('[data-block-id]'); const block = currentManual.blocks.find((item) => item.id === card?.dataset.blockId); if (!block) return;
+  const serialize = (node) => [...node.childNodes].map((child) => {
+    if (child.nodeType === Node.TEXT_NODE) return child.nodeValue;
+    const content = serialize(child);
+    if (child.matches?.('.rich-green')) return `==${content}==`;
+    if (child.matches?.('.rich-bold')) return `**${content}**`;
+    if (child.matches?.('.rich-italic')) return `*${content}*`;
+    if (child.matches?.('.rich-inline-code')) return `\`${content}\``;
+    if (child.tagName === 'BR') return '\n';
+    return content;
+  }).join('');
+  const serialized = serialize(field);
+  block[field.dataset.inlineField] = serialized;
+  const inspectorField = blockProperties.querySelector(`[data-block-field="${field.dataset.inlineField}"]`);
+  if (inspectorField && inspectorField !== document.activeElement) inspectorField.value = serialized;
+  setEditorMessage('Изменения внесены. Сохрани черновик или опубликуй мануал.');
+});
+editorCanvas.addEventListener('keydown', (event) => {
+  if (event.target.matches('[contenteditable="true"][data-inline-field="title"]') && event.key === 'Enter') event.preventDefault();
 });
 async function saveManual(status) {
   const payload = currentPageData(); payload.status = status;

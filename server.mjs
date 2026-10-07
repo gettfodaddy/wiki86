@@ -24,7 +24,7 @@ const defaultNavigation = [
 ];
 const iconNames = new Set(['book','network','cloud','shield','globe','terminal','spark','heading','text','list','code','alert','image','panel']);
 let categories = new Set(defaultNavigation.map((section) => section.id));
-const blockTypes = new Set(['heading', 'text', 'step', 'code', 'note', 'data', 'image', 'divider']);
+const blockTypes = new Set(['heading', 'text', 'step', 'accordion', 'code', 'note', 'data', 'image', 'divider']);
 const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.svg':'image/svg+xml', '.json':'application/json; charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp' };
 
 if (!adminPassword) throw new Error('Set WIKI86_ADMIN_PASSWORD before starting in production.');
@@ -108,9 +108,10 @@ function safeManual(input, previous = {}) {
   const blocks = input.blocks.map((raw) => {
     if (!raw || !blockTypes.has(raw.type)) throw new Error('Unknown block type.');
     const block = { id: String(raw.id || randomUUID()).slice(0, 60), type: raw.type };
-    for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant']) {
+    for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant', 'number', 'icon']) {
       if (raw[key] !== undefined) block[key] = String(raw[key]).slice(0, key === 'code' || key === 'text' ? 30000 : 500);
     }
+    if (raw.collapsible !== undefined) block.collapsible = raw.collapsible !== false;
     if (block.type === 'data') {
       if (!Array.isArray(raw.fields) || raw.fields.length < 1 || raw.fields.length > 20) throw new Error('A data form must contain between 1 and 20 fields.');
       const seenKeys = new Set();
