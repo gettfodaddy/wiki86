@@ -167,11 +167,26 @@ function safeManual(input, previous = {}) {
     return block;
   });
   if (blocks.filter((block) => block.type === 'data').length > 1) throw new Error('A manual can contain only one data form.');
+  const rawToc = input.toc && typeof input.toc === 'object' ? input.toc : previous.toc || {};
+  if (Array.isArray(rawToc.items) && rawToc.items.length > 100) throw new Error('The manual contents can contain at most 100 items.');
+  const blockIds = new Set(blocks.map((block) => block.id));
+  const toc = {
+    enabled: rawToc.enabled === true,
+    items: (Array.isArray(rawToc.items) ? rawToc.items : []).map((item) => {
+      if (!item || !['group', 'block'].includes(item.kind)) throw new Error('Invalid manual contents item.');
+      const title = String(item.title || '').trim().slice(0, 120);
+      if (!title) return null;
+      if (item.kind === 'group') return { id: String(item.id || randomUUID()).slice(0, 60), kind: 'group', title };
+      const blockId = String(item.blockId || '').slice(0, 60);
+      if (!blockIds.has(blockId)) return null;
+      return { id: String(item.id || randomUUID()).slice(0, 60), kind: 'block', title, blockId };
+    }).filter(Boolean)
+  };
   const previousSpacing = Number.isFinite(Number(previous.blockSpacing)) ? Number(previous.blockSpacing) : (spacingPresets[previous.blockSpacing] ?? 14);
-  const before = { title: previous.title, category: previous.category, slug: previous.slug, description: previous.description || '', icon: previous.icon || 'book', blockSpacing: previousSpacing, blocks: previous.blocks || [] };
-  const after = { title, category, slug, description, icon, blockSpacing, blocks };
+  const before = { title: previous.title, category: previous.category, slug: previous.slug, description: previous.description || '', icon: previous.icon || 'book', blockSpacing: previousSpacing, toc: previous.toc || { enabled: false, items: [] }, blocks: previous.blocks || [] };
+  const after = { title, category, slug, description, icon, blockSpacing, toc, blocks };
   const updated = previous.updated === true || Boolean(previous.id && previous.status === 'published' && status === 'published' && JSON.stringify(before) !== JSON.stringify(after));
-  return { id: previous.id || String(input.id || randomUUID()), title, category, slug, path: `/manual/${category}/${slug}`, description, icon, blockSpacing, status, updated, blocks, createdAt: previous.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
+  return { id: previous.id || String(input.id || randomUUID()), title, category, slug, path: `/manual/${category}/${slug}`, description, icon, blockSpacing, toc, status, updated, blocks, createdAt: previous.createdAt || new Date().toISOString(), updatedAt: new Date().toISOString() };
 }
 
 const server = createServer(async (req, res) => {

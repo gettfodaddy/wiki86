@@ -24,6 +24,7 @@ const blockNames = { heading: 'Заголовок', text: 'Текст', step: '�
 const routeViews = { '/': document.querySelector('#welcome-view'), '/admin': document.querySelector('#admin-view') };
 let manuals = [];
 let currentManual = null;
+let manualToc = { enabled: false, items: [] };
 let selectedBlockId = null;
 const selectedSpacingBlockIds = new Set();
 let adminAuthenticated = false;
@@ -284,12 +285,13 @@ function renderPublishedManual(manual) {
   const root = document.querySelector('#published-manual-content'); root.replaceChildren();
   const crumbs = document.querySelector('#generated-category-label'); crumbs.textContent = categories[manual.category].toLocaleUpperCase('ru');
   document.querySelector('#generated-slug-label').textContent = manual.title.toLocaleUpperCase('ru');
+  const layout = make('div', 'published-manual-layout'); const article = make('main', 'published-manual-article');
   const hero = make('header', 'published-manual-header');
   hero.append(make('p', 'eyebrow', `${categories[manual.category].toLocaleUpperCase('ru')} · ИНСТРУКЦИЯ`), make('h1', '', manual.title));
   if (manual.description) hero.append(make('p', 'published-description', manual.description));
-  root.append(hero);
+  article.append(hero);
   const dataBlock = manual.blocks.find((block) => block.type === 'data');
-  if (!dataBlock && manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); root.append(dataPanel); updateDataPreview(root); }
+  if (!dataBlock && manual.path === '/manual/selfsteal') { const template = document.querySelector('#selfsteal-data-template'); const dataPanel = template.content.cloneNode(true); article.append(dataPanel); updateDataPreview(article); }
   const content = make('div', 'published-blocks');
   const defaultGap = normalizeBlockSpacing(manual.blockSpacing);
   content.style.setProperty('--manual-block-gap', `${defaultGap}px`);
@@ -306,10 +308,26 @@ function renderPublishedManual(manual) {
     else if (block.type === 'table') { element = renderTable(block); }
     else if (block.type === 'image') { element = make('figure', 'published-image'); const src = validImageSource(block.src) ? block.src : ''; if (src) { const img = document.createElement('img'); img.src = src; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); } else element.append(make('div', 'image-placeholder', 'Добавьте HTTPS-ссылку или SVG-файл из /assets/')); if (block.alt) element.append(make('figcaption', '', block.alt)); }
     else element = make('hr', 'published-divider');
-  element.dataset.blockId = block.id; element.style.marginBottom = `${normalizeBlockSpacing(block.spacingAfter ?? defaultGap)}px`; content.append(element);
+  element.id = `manual-block-${block.id}`; element.dataset.blockId = block.id; element.style.marginBottom = `${normalizeBlockSpacing(block.spacingAfter ?? defaultGap)}px`; content.append(element);
   });
   if (content.lastElementChild) content.lastElementChild.style.marginBottom = '0px';
-  root.append(content);
+  article.append(content);
+  const toc = manual.toc && typeof manual.toc === 'object' ? manual.toc : { enabled: false, items: [] };
+  const tocItems = Array.isArray(toc.items) ? toc.items : [];
+  if (toc.enabled && tocItems.some((item) => item.kind === 'block' && manual.blocks.some((block) => block.id === item.blockId))) {
+    const aside = make('aside', 'published-manual-toc'); const details = document.createElement('details'); details.open = true; details.append(make('summary', '', 'В ЭТОМ МАНУАЛЕ'));
+    const nav = make('nav', 'manual-toc-nav'); let list = null;
+    tocItems.forEach((item) => {
+      if (item.kind === 'group') { const group = make('h2', 'manual-toc-group', item.title); nav.append(group); list = null; return; }
+      const target = manual.blocks.find((block) => block.id === item.blockId); if (!target) return;
+      if (!list) { list = make('ol', 'manual-toc-list'); nav.append(list); }
+      const li = document.createElement('li'); const link = document.createElement('a'); link.href = `#manual-block-${encodeURIComponent(target.id)}`; link.textContent = item.title || target.title || blockNames[target.type] || 'Блок мануала';
+      link.addEventListener('click', (event) => { event.preventDefault(); const anchor = `manual-block-${target.id}`; const element = document.getElementById(anchor); element?.scrollIntoView({ behavior: 'smooth', block: 'start' }); history.replaceState({}, '', `${location.pathname}${location.search}#${encodeURIComponent(anchor)}`); });
+      li.append(link); list.append(li);
+    });
+    details.append(nav); aside.append(details); layout.append(article, aside);
+  } else layout.append(article);
+  root.append(layout);
 }
 
 const loginOverlay = document.querySelector('#admin-login');
@@ -323,6 +341,52 @@ const pageDescription = document.querySelector('#page-description');
 const editorCanvas = document.querySelector('#editor-canvas');
 const blockProperties = document.querySelector('#block-properties');
 const editorMessage = document.querySelector('#editor-message');
+const manualTocDialog = document.querySelector('#manual-toc-dialog');
+function tocBlockLabel(block, index) {
+  const title = block.title || block.text?.split('\n')[0] || blockNames[block.type] || 'Блок';
+  return `${String(index + 1).padStart(2, '0')} · ${blockNames[block.type] || block.type} · ${title}`.slice(0, 150);
+}
+function renderTocEditor() {
+  const container = document.querySelector('#manual-toc-editor-list'); container.replaceChildren();
+  const blocks = currentPageData().blocks;
+  document.querySelector('#manual-toc-enabled').checked = manualToc.enabled === true;
+  document.querySelector('#add-toc-link').disabled = blocks.length === 0;
+  if (!manualToc.items.length) container.append(make('p', 'manual-toc-empty', 'Добавь заголовок раздела или ссылку на один из блоков мануала.'));
+  manualToc.items.forEach((item, index) => {
+    const card = make('section', `manual-toc-editor-item${item.kind === 'group' ? ' is-group' : ''}`); card.dataset.tocId = item.id;
+    const heading = make('div', 'manual-toc-editor-heading'); heading.append(make('strong', '', `${String(index + 1).padStart(2, '0')} · ${item.kind === 'group' ? 'Заголовок раздела' : 'Ссылка на блок'}`));
+    const controls = make('div', 'manual-toc-row-actions');
+    [['↑','up','Поднять'],['↓','down','Опустить'],['Удалить','remove','Удалить пункт']].forEach(([label, action, title]) => { const button = make('button', action === 'remove' ? 'remove-data-field' : 'block-action', label); button.type = 'button'; button.title = title; button.dataset.tocAction = action; button.disabled = action === 'up' ? index === 0 : action === 'down' ? index === manualToc.items.length - 1 : false; controls.append(button); });
+    heading.append(controls); card.append(heading);
+    const titleLabel = make('label', 'inspector-field', item.kind === 'group' ? 'Название раздела' : 'Текст пункта'); const titleInput = document.createElement('input'); titleInput.maxLength = 120; titleInput.value = item.title || ''; titleInput.placeholder = item.kind === 'group' ? 'Например, Первый запуск' : 'Например, Создаём A-запись'; titleInput.dataset.tocField = 'title'; titleLabel.append(titleInput); card.append(titleLabel);
+    if (item.kind === 'block') {
+      const targetLabel = make('label', 'inspector-field', 'Блок, к которому ведёт пункт'); const select = document.createElement('select'); select.dataset.tocField = 'blockId';
+      const placeholder = document.createElement('option'); placeholder.value = ''; placeholder.textContent = blocks.length ? 'Выбери блок' : 'Сначала добавь блок'; select.append(placeholder);
+      blocks.forEach((block, blockIndex) => { const option = document.createElement('option'); option.value = block.id; option.textContent = tocBlockLabel(block, blockIndex); select.append(option); }); select.value = item.blockId || ''; targetLabel.append(select); card.append(targetLabel);
+    }
+    container.append(card);
+  });
+}
+document.querySelector('#manage-manual-toc').addEventListener('click', () => { renderTocEditor(); manualTocDialog.showModal(); });
+document.querySelector('#close-manual-toc').addEventListener('click', () => manualTocDialog.close());
+document.querySelector('#done-manual-toc').addEventListener('click', () => { manualTocDialog.close(); refreshEditorCanvas(); setEditorMessage('Содержание обновлено. Сохрани черновик или опубликуй мануал.'); });
+document.querySelector('#manual-toc-enabled').addEventListener('change', (event) => { manualToc.enabled = event.target.checked; });
+document.querySelector('#add-toc-group').addEventListener('click', () => { manualToc.items.push({ id: crypto.randomUUID(), kind: 'group', title: 'Новый раздел' }); renderTocEditor(); });
+document.querySelector('#add-toc-link').addEventListener('click', () => { const block = currentPageData().blocks[0]; if (!block) return; manualToc.items.push({ id: crypto.randomUUID(), kind: 'block', title: block.title || blockNames[block.type] || 'Новый пункт', blockId: block.id }); renderTocEditor(); });
+document.querySelector('#manual-toc-editor-list').addEventListener('input', (event) => {
+  const field = event.target.closest('[data-toc-field]'); const row = field?.closest('[data-toc-id]'); const item = manualToc.items.find((entry) => entry.id === row?.dataset.tocId); if (!field || !item) return;
+  item[field.dataset.tocField] = field.value;
+});
+document.querySelector('#manual-toc-editor-list').addEventListener('change', (event) => {
+  const field = event.target.closest('[data-toc-field="blockId"]'); const row = field?.closest('[data-toc-id]'); const item = manualToc.items.find((entry) => entry.id === row?.dataset.tocId); if (field && item) item.blockId = field.value;
+});
+document.querySelector('#manual-toc-editor-list').addEventListener('click', (event) => {
+  const button = event.target.closest('[data-toc-action]'); const row = button?.closest('[data-toc-id]'); if (!button || !row) return;
+  const index = manualToc.items.findIndex((item) => item.id === row.dataset.tocId); const action = button.dataset.tocAction;
+  if (action === 'remove') manualToc.items.splice(index, 1);
+  else { const next = action === 'up' ? index - 1 : index + 1; if (next >= 0 && next < manualToc.items.length) [manualToc.items[index], manualToc.items[next]] = [manualToc.items[next], manualToc.items[index]]; }
+  renderTocEditor();
+});
 function setAdminMode(mode) {
   const manualMode = mode !== 'navigation';
   document.querySelector('#manual-workspace').hidden = !manualMode;
@@ -344,7 +408,7 @@ function defaultBlock(type) {
   if (type === 'table') return { ...common, ...defaultTable() };
   return common;
 }
-function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), icon: document.querySelector('#page-manual-icon').value || 'book', blockSpacing: normalizeBlockSpacing(currentManual?.blockSpacing ?? 14), status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
+function currentPageData() { return { id: currentManual?.id, title: pageTitle.value.trim(), category: pageCategory.value, slug: pageSlug.value.trim().toLowerCase(), description: pageDescription.value.trim(), icon: document.querySelector('#page-manual-icon').value || 'book', blockSpacing: normalizeBlockSpacing(currentManual?.blockSpacing ?? 14), toc: structuredClone(manualToc), status: currentManual?.status || 'draft', blocks: currentManual?.blocks || [] }; }
 function normalizeBlockSpacing(value) { const legacy = { compact: 8, normal: 14, relaxed: 24 }; const parsed = Number.isFinite(Number(value)) ? Number(value) : legacy[value]; return Math.max(0, Math.min(80, Math.round(parsed ?? 14))); }
 function refreshEditorCanvas() {
   const data = currentPageData(); editorCanvas.replaceChildren();
@@ -356,7 +420,7 @@ function refreshEditorCanvas() {
     const tools = make('div', 'editor-block-tools'); tools.append(make('span', 'editor-block-label', `${String(index + 1).padStart(2, '0')} · ${blockNames[block.type]}`));
     const spacingSelect = make('label', 'spacing-select-block'); const spacingCheckbox = document.createElement('input'); spacingCheckbox.type = 'checkbox'; spacingCheckbox.checked = selectedSpacingBlockIds.has(block.id); spacingCheckbox.dataset.spacingSelect = block.id; spacingCheckbox.setAttribute('aria-label', `Выбрать блок «${blockNames[block.type]}» для настройки отступа`); spacingSelect.append(spacingCheckbox, make('span', '', 'Отступ')); tools.append(spacingSelect);
     [['up','<path d="m6 14 6-6 6 6"/>'],['down','<path d="m6 10 6 6 6-6"/>'],['edit','<path d="m14 5 5 5M4 20l4.2-.9L19 8.3 15.7 5 4.9 15.8 4 20Z"/>'],['delete','<path d="M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3"/>']].forEach(([action, path]) => { const button = make('button', 'block-action', ''); button.type = 'button'; button.dataset.blockAction = action; button.title = ({up:'Переместить выше',down:'Переместить ниже',edit:'Редактировать',delete:'Удалить'})[action]; button.setAttribute('aria-label', button.title); button.innerHTML = `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24">${path}</svg>`; button.disabled = (action === 'up' && index === 0) || (action === 'down' && index === data.blocks.length - 1); tools.append(button); });
-    card.append(tools);
+    card.id = `canvas-block-${block.id}`; card.append(tools);
     if (block.type === 'heading') card.append(templateText(block.level === '3' ? 'h3' : 'h2', '', block.title || 'Заголовок'));
     if (block.type === 'text') card.append(templateText('p', '', block.text || 'Текстовый блок'));
     if (block.type === 'step') {
@@ -565,11 +629,11 @@ function renderBlockInspector() {
   blockProperties.querySelectorAll('[data-remove-tab]').forEach((button) => button.addEventListener('click', () => { block.tabs.splice(Number(button.dataset.removeTab), 1); renderBlockInspector(); refreshEditorCanvas(); }));
 }
 function resetEditor() {
-  currentManual = null; selectedBlockId = null; selectedSpacingBlockIds.clear(); pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; fillIconOptions(document.querySelector('#page-manual-icon'), 'book'); document.querySelector('#page-manual-icon-file').value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
+  currentManual = null; manualToc = { enabled: false, items: [] }; selectedBlockId = null; selectedSpacingBlockIds.clear(); pageTitle.value = ''; pageCategory.value = navigationSections.some((item) => item.id === 'cdn') ? 'cdn' : navigationSections[0]?.id || ''; pageSlug.value = ''; pageSlug.dataset.edited = ''; pageDescription.value = ''; fillIconOptions(document.querySelector('#page-manual-icon'), 'book'); document.querySelector('#page-manual-icon-file').value = ''; document.querySelector('#manual-picker').value = ''; renderCategoryOptions(pageCategory.value); renderBlockInspector(); refreshEditorCanvas(); setEditorMessage('Новая страница. Заполни поля и добавь блоки.', '');
 }
 function setEditorMessage(message, kind = 'success') { editorMessage.textContent = message; editorMessage.dataset.kind = kind; }
 function hydrateEditor(manual) {
-  currentManual = structuredClone(manual); selectedBlockId = null; selectedSpacingBlockIds.clear(); pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; fillIconOptions(document.querySelector('#page-manual-icon'), manual.icon || 'book'); document.querySelector('#page-manual-icon-file').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
+  currentManual = structuredClone(manual); manualToc = structuredClone(manual.toc || { enabled: false, items: [] }); selectedBlockId = null; selectedSpacingBlockIds.clear(); pageTitle.value = manual.title; pageCategory.value = manual.category; pageSlug.value = manual.slug; pageSlug.dataset.edited = 'true'; pageDescription.value = manual.description || ''; fillIconOptions(document.querySelector('#page-manual-icon'), manual.icon || 'book'); document.querySelector('#page-manual-icon-file').value = ''; renderBlockInspector(); refreshEditorCanvas(); setEditorMessage(manual.status === 'published' ? 'Опубликовано. Сохранение обновит страницу на сайте.' : 'Черновик загружен.');
 }
 function renderPicker() {
   const picker = document.querySelector('#manual-picker'); picker.replaceChildren();
