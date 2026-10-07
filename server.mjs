@@ -3,6 +3,7 @@ import { randomBytes, timingSafeEqual, randomUUID } from 'node:crypto';
 import { readFile, writeFile, mkdir, stat, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createSelfstealManual } from './selfsteal-manual.mjs';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.resolve(process.env.WIKI86_DATA_DIR || path.join(root, '.wiki86-data'));
@@ -24,7 +25,8 @@ const defaultNavigation = [
 ];
 const iconNames = new Set(['book','network','cloud','shield','globe','terminal','spark','heading','text','list','code','alert','image','panel']);
 let categories = new Set(defaultNavigation.map((section) => section.id));
-const blockTypes = new Set(['heading', 'text', 'step', 'accordion', 'code', 'note', 'data', 'image', 'divider']);
+const blockTypes = new Set(['heading', 'text', 'step', 'accordion', 'tabs', 'code', 'note', 'data', 'image', 'table', 'divider']);
+const stepItemTypes = new Set(['text', 'code', 'note', 'image', 'table', 'divider']);
 const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.svg':'image/svg+xml', '.json':'application/json; charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp' };
 
 if (!adminPassword) throw new Error('Set WIKI86_ADMIN_PASSWORD before starting in production.');
@@ -60,21 +62,15 @@ async function writeNavigation(value) {
 }
 const initialNavigation = await readNavigation();
 categories = new Set(initialNavigation.sections.map((section) => section.id));
-const selfstealSeedMarker = path.join(dataDir, '.selfsteal-seeded-v1');
+const selfstealSeedMarker = path.join(dataDir, '.selfsteal-seeded-v2');
 try { await stat(selfstealSeedMarker); }
 catch {
   const list = await readManuals();
-  if (!list.some((manual) => manual.path === '/manual/selfsteal')) {
-    list.unshift({
-      id: '86000000-0000-4000-8000-000000000086', title: 'Self-steal', category: 'protocols', slug: 'selfsteal', path: '/manual/selfsteal',
-      description: 'Персональные значения сохраняются в браузере и будут подставляться в команды мануала.', status: 'published',
-      blocks: [
-        { id: 'selfsteal-intro', type: 'step', title: 'Подготовь данные', text: 'Укажи домен ноды, название сайта и почту для сертификата в блоке «Твои данные». Значения хранятся локально в браузере.' },
-        { id: 'selfsteal-content', type: 'text', text: 'Подробная инструкция по Self-steal будет добавлена в конструкторе мануалов.' }
-      ], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
-    });
-    await writeManuals(list);
-  }
+  const existingIndex = list.findIndex((manual) => manual.category === 'protocols' && manual.slug === 'selfsteal' || manual.path === '/manual/selfsteal');
+  const replacement = createSelfstealManual(existingIndex >= 0 ? list[existingIndex] : {});
+  if (existingIndex >= 0) list[existingIndex] = replacement;
+  else list.unshift(replacement);
+  await writeManuals(list);
   await writeFile(selfstealSeedMarker, '1\n', { mode: 0o600 });
 }
 function send(res, status, body, headers = {}) {
@@ -111,7 +107,32 @@ function safeManual(input, previous = {}) {
     for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'level', 'variant', 'number', 'icon']) {
       if (raw[key] !== undefined) block[key] = String(raw[key]).slice(0, key === 'code' || key === 'text' ? 30000 : 500);
     }
+    if (raw.type === 'step' && Array.isArray(raw.items)) {
+      if (raw.items.length > 50) throw new Error('A step can contain at most 50 items.');
+      block.items = raw.items.map((item) => {
+        if (!item || !stepItemTypes.has(item.type)) throw new Error('Unsupported item inside a step.');
+        const safe = { id: String(item.id || randomUUID()).slice(0, 60), type: item.type };
+        for (const key of ['title', 'text', 'code', 'language', 'src', 'alt', 'variant']) if (item[key] !== undefined) safe[key] = String(item[key]).slice(0, key === 'text' || key === 'code' ? 30000 : 500);
+        if (item.type === 'table') {
+          if (!Array.isArray(item.headers) || item.headers.length < 1 || item.headers.length > 8 || !Array.isArray(item.rows) || item.rows.length > 40) throw new Error('Invalid table dimensions.');
+          safe.headers = item.headers.map((cell) => String(cell || '').slice(0, 300));
+          safe.rows = item.rows.map((row) => safe.headers.map((_, index) => String(row?.[index] || '').slice(0, 2000)));
+        }
+        if (item.type === 'image' && item.src && !(/^https:\/\//i.test(item.src) || /^\/assets\/[\w./-]+\.svg$/i.test(item.src) && !item.src.includes('..'))) throw new Error('Images must use HTTPS URLs or a local SVG from /assets/.');
+        return safe;
+      });
+    }
+    if (raw.type === 'table') {
+      if (!Array.isArray(raw.headers) || raw.headers.length < 1 || raw.headers.length > 8 || !Array.isArray(raw.rows) || raw.rows.length > 40) throw new Error('Invalid table dimensions.');
+      block.headers = raw.headers.map((cell) => String(cell || '').slice(0, 300));
+      block.rows = raw.rows.map((row) => block.headers.map((_, index) => String(row?.[index] || '').slice(0, 2000)));
+    }
     if (raw.collapsible !== undefined) block.collapsible = raw.collapsible !== false;
+    if (block.type === 'tabs') {
+      if (!Array.isArray(raw.tabs) || raw.tabs.length < 2 || raw.tabs.length > 6) throw new Error('A tabs block must contain between 2 and 6 tabs.');
+      block.tabs = raw.tabs.map((tab) => ({ title: String(tab?.title || '').trim().slice(0, 80), language: String(tab?.language || 'TEXT').trim().slice(0, 40), text: String(tab?.text || '').slice(0, 12000), code: String(tab?.code || '').slice(0, 30000) }));
+      if (block.tabs.some((tab) => !tab.title)) throw new Error('Every tab needs a title.');
+    }
     if (block.type === 'data') {
       if (!Array.isArray(raw.fields) || raw.fields.length < 1 || raw.fields.length > 20) throw new Error('A data form must contain between 1 and 20 fields.');
       const seenKeys = new Set();
@@ -122,7 +143,7 @@ function safeManual(input, previous = {}) {
         return { key, label: String(field.label || key).trim().slice(0, 80), placeholder: String(field.placeholder || '').slice(0, 160), help: String(field.help || '').slice(0, 240) };
       });
     }
-    if (block.type === 'image' && block.src && !/^https:\/\//i.test(block.src)) throw new Error('Images must use HTTPS URLs.');
+    if (block.type === 'image' && block.src && !(/^https:\/\//i.test(block.src) || /^\/assets\/[\w./-]+\.svg$/i.test(block.src) && !block.src.includes('..'))) throw new Error('Images must use HTTPS URLs or a local SVG from /assets/.');
     return block;
   });
   if (blocks.filter((block) => block.type === 'data').length > 1) throw new Error('A manual can contain only one data form.');

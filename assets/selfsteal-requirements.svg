@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 250" role="img" aria-labelledby="title">
+  <title id="title">Что понадобится для настройки</title>
+  <rect x="1" y="1" width="1118" height="248" rx="18" fill="#171912" stroke="#45402e"/>
+  <rect x="18" y="18" width="1084" height="52" rx="10" fill="#26251b"/>
+  <text x="42" y="51" fill="#f2e6ca" font-family="system-ui,sans-serif" font-size="16" font-weight="700">Проверка</text>
+  <text x="392" y="51" fill="#f2e6ca" font-family="system-ui,sans-serif" font-size="16" font-weight="700">Нужное состояние</text>
+  <path d="M360 18v214M18 70h1084M18 124h1084M18 178h1084" stroke="#3d392d"/>
+  <text x="42" y="105" fill="#e9e4d6" font-family="system-ui,sans-serif" font-size="15">Домен ноды</text>
+  <text x="392" y="105" fill="#d5cfbf" font-family="system-ui,sans-serif" font-size="15">A-запись → публичный IPv4 · Cloudflare DNS only</text>
+  <text x="42" y="159" fill="#e9e4d6" font-family="system-ui,sans-serif" font-size="15">Порты</text>
+  <text x="392" y="159" fill="#d5cfbf" font-family="system-ui,sans-serif" font-size="15">80 доступен для ACME · 443 занят Xray</text>
+  <text x="42" y="213" fill="#e9e4d6" font-family="system-ui,sans-serif" font-size="15">Локальный fallback</text>
+  <text x="392" y="213" fill="#d5cfbf" font-family="system-ui,sans-serif" font-size="15">Nginx слушает 127.0.0.1:8443 · порт не публикуется</text>
+</svg>

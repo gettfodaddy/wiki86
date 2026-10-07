@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 390" role="img" aria-labelledby="title desc">
+  <title id="title">Как работает Self-steal</title>
+  <desc id="desc">Клиент с ключом REALITY идёт в VPN, обычный HTTPS запрос попадает в локальный nginx.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#102b2b"/><stop offset="1" stop-color="#0c171c"/></linearGradient>
+    <linearGradient id="mint" x2="1"><stop stop-color="#2ab98f"/><stop offset="1" stop-color="#68e4b6"/></linearGradient>
+    <linearGradient id="amber" x2="1"><stop stop-color="#d4943f"/><stop offset="1" stop-color="#f4c46d"/></linearGradient>
+  </defs>
+  <rect x="1" y="1" width="1118" height="388" rx="22" fill="url(#bg)" stroke="#2b5349"/>
+  <text x="560" y="49" text-anchor="middle" fill="#e4fff4" font-family="system-ui,sans-serif" font-size="25" font-weight="700">Один порт 443 · два типа запроса</text>
+  <rect x="36" y="113" width="270" height="84" rx="16" fill="#102d25" stroke="#39b88e"/>
+  <text x="171" y="148" text-anchor="middle" fill="#d8fff0" font-family="system-ui,sans-serif" font-size="19" font-weight="700">Клиент REALITY</text>
+  <text x="171" y="176" text-anchor="middle" fill="#69e4b6" font-family="system-ui,sans-serif" font-size="14">ключ совпал</text>
+  <rect x="36" y="229" width="270" height="84" rx="16" fill="#302519" stroke="#d99d49"/>
+  <text x="171" y="264" text-anchor="middle" fill="#fff2dd" font-family="system-ui,sans-serif" font-size="19" font-weight="700">Обычный HTTPS</text>
+  <text x="171" y="292" text-anchor="middle" fill="#f1bd65" font-family="system-ui,sans-serif" font-size="14">браузер · сканер</text>
+  <rect x="420" y="104" width="280" height="214" rx="20" fill="#101f20" stroke="#315c4e" stroke-width="2"/>
+  <text x="560" y="150" text-anchor="middle" fill="#e3fff4" font-family="system-ui,sans-serif" font-size="20" font-weight="700">Xray · порт 443</text>
+  <text x="560" y="181" text-anchor="middle" fill="#8eafa3" font-family="system-ui,sans-serif" font-size="14">проверяет REALITY</text>
+  <path d="M455 205h210" stroke="#29463c" stroke-dasharray="5 7"/>
+  <text x="560" y="240" text-anchor="middle" fill="#70dfb5" font-family="system-ui,sans-serif" font-size="15">ключ совпал → VPN</text>
+  <text x="560" y="273" text-anchor="middle" fill="#e9ba66" font-family="system-ui,sans-serif" font-size="15">иначе → 127.0.0.1:8443</text>
+  <rect x="814" y="113" width="270" height="84" rx="16" fill="#102d25" stroke="#39b88e"/>
+  <text x="949" y="148" text-anchor="middle" fill="#d8fff0" font-family="system-ui,sans-serif" font-size="19" font-weight="700">VPN-туннель</text>
+  <text x="949" y="176" text-anchor="middle" fill="#69e4b6" font-family="system-ui,sans-serif" font-size="14">трафик клиента</text>
+  <rect x="814" y="229" width="270" height="84" rx="16" fill="#15231e" stroke="#4d8068"/>
+  <text x="949" y="264" text-anchor="middle" fill="#e5f6eb" font-family="system-ui,sans-serif" font-size="19" font-weight="700">Локальный nginx</text>
+  <text x="949" y="292" text-anchor="middle" fill="#a5c7b3" font-family="system-ui,sans-serif" font-size="14">сертификат · сайт</text>
+  <path d="M306 155h113M701 155h111" stroke="url(#mint)" stroke-width="3"/>
+  <path d="M306 271h113M701 271h111" stroke="url(#amber)" stroke-width="3"/>
+  <circle cx="360" cy="155" r="7" fill="#65dfb1"/><circle cx="758" cy="155" r="7" fill="#65dfb1"/>
+  <circle cx="360" cy="271" r="7" fill="#efba63"/><circle cx="758" cy="271" r="7" fill="#efba63"/>
+  <text x="560" y="359" text-anchor="middle" fill="#96b7a8" font-family="system-ui,sans-serif" font-size="14">Nginx доступен только локально · снаружи открыт только 443</text>
+</svg>

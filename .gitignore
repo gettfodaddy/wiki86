@@ -1,4 +1,5 @@
 node_modules/
 .wiki86-data/
+.preview-data/
 .env
 *.log
