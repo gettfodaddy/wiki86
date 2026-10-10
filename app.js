@@ -115,7 +115,8 @@ function getVariableValue(key) {
   return storedUserData[key] ?? storedUserData[legacyKeys[key]] ?? storedUserData[key.toLowerCase()] ?? '';
 }
 function variableField(key) {
-  const manual = currentManual || manuals.find((item) => item.path === normalizePath(location.pathname));
+  const routeManual = manuals.find((item) => item.path === normalizePath(location.pathname));
+  const manual = routeManual || currentManual;
   return manual?.blocks?.find((block) => block.type === 'data')?.fields?.find((field) => field.key === key) || defaultDataFields().find((field) => field.key === key);
 }
 function resolveVariable(key) { const entered = String(getVariableValue(key) || '').trim(); return entered ? { value: entered, filled: true } : { value: variableField(key)?.placeholder || `{{${key}}}`, filled: false }; }
