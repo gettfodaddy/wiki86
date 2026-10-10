@@ -108,3 +108,33 @@ npm start
 - Изображения добавляются по HTTPS-ссылке; загрузка файлов изображений на сервер пока не предусмотрена.
 - Поля «Твои данные» для инструкции Self-steal остаются в локальном хранилище браузера и не отправляются серверу.
 - Локальный пароль `wiki86-preview` предназначен только для разработки. В production обязательно задай собственный `WIKI86_ADMIN_PASSWORD`.
+
+## Протокольные мануалы и обновление сайта через Git
+
+Протокольные страницы собираются из исходника `selfsteal-manual.mjs` и файла `scripts/build-protocol-manuals.mjs`. После правок выполни из корня репозитория:
+
+```sh
+node scripts/build-protocol-manuals.mjs
+node scripts/export-manuals.mjs
+```
+
+Для публикации изменений в основной ветке:
+
+```sh
+git status --short
+git add content/manuals.json content/navigation.json docs/manuals package.json scripts/build-protocol-manuals.mjs selfsteal-manual.mjs server.mjs README.md
+git commit -m "Add protocol manuals"
+git push origin main
+```
+
+На сервере, если `/opt/wiki86` является Git-клоном с настроенным доступом к origin, подтяни ветку и перезапусти службу:
+
+```sh
+cd /opt/wiki86
+sudo git pull --ff-only origin main
+sudo systemctl restart wiki86
+sudo systemctl status wiki86 --no-pager
+sudo journalctl -u wiki86 -n 80 --no-pager
+```
+
+При запуске сервер добавляет новые опубликованные мануалы и разделы из `content/` в постоянное хранилище `WIKI86_DATA_DIR`. Разовая миграция обновляет встроенный Self-steal до новой версии, сохраняя его ID. Перед обновлением сохрани резервную копию `/var/lib/wiki86/manuals.json`; после перезапуска открой раздел «Протоколы» и проверь несколько страниц.

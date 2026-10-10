@@ -26,7 +26,18 @@
       "title": "Протоколы",
       "icon": "network",
       "color": "#f3bd70",
-      "manualIds": []
+      "manualIds": [
+        "dc82c4a8-c13d-4bbb-8140-1fd8e61b0bb0",
+        "cdbb6834-d20f-431b-bfd3-c802da7cc814",
+        "bc612af9-e439-411d-977a-be145152d491",
+        "932bbbea-20b0-4493-9bc5-498975348317",
+        "5ebed584-af24-47e9-abf3-85bc77cc6f94",
+        "145df18b-f6c5-411c-9fa6-52b097775fc9",
+        "cdc7b66c-1f7b-4a59-a9f3-446e6991b5fb",
+        "cea75765-d58b-4b87-8b88-5c389f5c5907",
+        "f63f9dcd-3e2b-4769-a551-58ab4ac4ded0",
+        "86000000-0000-4000-8000-000000000086"
+      ]
     },
     {
       "id": "cdn",

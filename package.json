@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "docs:generate": "node scripts/export-manuals.mjs"
+    "docs:generate": "node scripts/export-manuals.mjs",
+    "manuals:protocols": "node scripts/build-protocol-manuals.mjs"
   },
   "engines": {
     "node": ">=20"

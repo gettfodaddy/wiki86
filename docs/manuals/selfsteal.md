@@ -19,6 +19,7 @@
 | Переменная | Поле | Пример | Подсказка |
 | --- | --- | --- | --- |
 | NODE_DOMAIN | Домен ноды | node.example.com | A-запись должна указывать на публичный IPv4 сервера. Для DNS only отключи проксирование Cloudflare. |
+| SNI | SNI / server name | microsoft.com | Для Self-steal обязательно замени на NODE_DOMAIN: локальный nginx предъявляет сертификат именно этого домена. |
 | SITE_NAME | Название сайта | Например, Мои заметки | Короткое название для собственной страницы-заглушки. |
 | LE_EMAIL | Почта сертификата | mail@example.com | Адрес для уведомлений о TLS-сертификате Let’s Encrypt. |
 
@@ -35,10 +36,10 @@
 
 ![Схема: проверенный REALITY-клиент получает VPN, обычный HTTPS-запрос попадает в локальный nginx.](/assets/selfsteal-flow.svg)
 
-В параметрах REALITY указывают домен назначения и разрешённые имена SNI. Обычно это один домен, сертификат которого подходит для такого имени. В этой схеме Xray перенаправляет неподходящие запросы на свой локальный nginx:8443, а nginx предъявляет сертификат Let’s Encrypt для {{NODE_DOMAIN}}.
+В параметрах REALITY указывают домен назначения и разрешённые имена SNI. Для этой схемы SNI из «Твои данные» должен совпадать с доменом сертификата nginx; замени пример microsoft.com на {{NODE_DOMAIN}}. В этой схеме Xray перенаправляет неподходящие запросы на свой локальный nginx:8443, а nginx предъявляет сертификат Let’s Encrypt для {{NODE_DOMAIN}}.
 
 > **Не путай адреса**  
-dest — это локальный адрес nginx, например 127.0.0.1:8443. serverNames — имя домена в TLS-рукопожатии, например {{NODE_DOMAIN}}. Не указывай в dest публичный IP или домен:443, иначе запрос может вернуться в Xray и зациклиться.
+dest — это локальный адрес nginx, например 127.0.0.1:8443. serverNames/SNI — имя домена в TLS-рукопожатии, например {{SNI}}; для Self-steal оно должно совпадать с {{NODE_DOMAIN}} и сертификатом nginx. Не указывай в dest публичный IP или домен:443, иначе запрос может вернуться в Xray и зациклиться.
 
 ## Почему простой заглушки недостаточно
 
@@ -59,14 +60,25 @@ dest — это локальный адрес nginx, например 127.0.0.1:
 
 ![Требования: домен указывает на сервер, Cloudflare работает в режиме DNS only, доступны порты 80 и 443.](/assets/selfsteal-requirements.svg)
 
-Порт 80 понадобится Certbot для проверки владения доменом по HTTP-01. Порт 443 оставь Xray. Nginx займёт только локальный адрес 127.0.0.1:8443, поэтому его нельзя будет открыть из интернета. Сначала проверь, какие процессы уже слушают эти порты.
+Порт 80/TCP понадобится Certbot для проверки владения доменом по HTTP-01. Порт 443/TCP оставь Xray. Nginx займёт только локальный адрес 127.0.0.1:8443, поэтому его нельзя открывать из интернета. Сначала проверь, какие процессы уже слушают эти порты.
+
+```bash
+sudo ss -lntup | grep -E ":(80|443|8443)\b" || true
+sudo ufw status verbose
+# Если UFW уже активен, добавь правила:
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+```
+
+> **Проверь оба firewall**  
+Правила выше относятся к UFW на Ubuntu; если команда отсутствует, установи `sudo apt update && sudo apt install -y ufw`. В панели VPS/VPC тоже разреши входящий TCP 80 и 443. Не открывай 8443: nginx слушает только 127.0.0.1. Если UFW выключен, не включай его, пока не разрешишь используемый SSH-порт; Node API оставь доступным только с IP Panel.
 
 ```bash
 sudo ss -ltnp | grep -E ":(80|443|8443)\b" || true
 ```
 
 > **Проверь существующую установку**  
-Если установщик Remnawave уже занял порт 80 или 443, не останавливай контейнеры наугад. Выясни, что именно запущено, и используй существующую схему веб-сервера либо сначала освободи порты с пониманием последствий.
+Если установщик Remnawave уже занял порт 80 или 443, не останавливай контейнеры наугад. Выясни, что именно запущено, и используй существующую схему веб-сервера либо сначала освободи порты с пониманием последствий. Если TCP 80 занят Caddy или другим сервером, не ставь второй веб-сервер на тот же порт: используй существующий ACME-маршрут или DNS-01.
 
 ## Веб-сервер и сертификат
 
@@ -74,10 +86,18 @@ sudo ss -ltnp | grep -E ":(80|443|8443)\b" || true
 
 Nginx будет обслуживать HTTP-проверку Certbot на 80-м порту и сайт для fallback на локальном 8443. Установи пакеты и создай каталог для сайта. Не отключай другие активные конфигурации, пока не проверишь, что они обслуживают.
 
+> **Если Certbot уже установлен**  
+Проверь `certbot --version` и способ установки. Не смешивай apt-версию Certbot со Snap-версией: оставь уже работающий пакет или удали его перед переходом на Snap.
+
 ```bash
 sudo apt update
-sudo apt install -y nginx certbot
-sudo install -d -m 0755 /var/www/selfsteal
+sudo apt install -y nginx snapd
+sudo snap install core
+sudo snap refresh core
+sudo snap install --classic certbot
+sudo ln -sfn /snap/bin/certbot /usr/local/bin/certbot
+certbot --version
+sudo install -d -m 0755 /var/www/selfsteal/.well-known/acme-challenge
 ```
 
 На время выпуска сертификата создай HTTP-конфигурацию. Не добавляй её поверх другого сайта, который уже использует тот же домен и порт.
@@ -116,7 +136,7 @@ curl -I http://{{NODE_DOMAIN}}/
 
 ## Получи сертификат и настрой продление
 
-Certbot положит challenge-файл в webroot, а Let’s Encrypt проверит его через публичный порт 80. Домен должен уже разрешаться в IP VPS, входящий HTTP должен быть разрешён firewall и у хостера.
+Certbot положит challenge-файл в webroot, а Let’s Encrypt проверит его через публичный порт 80/TCP. Домен уже должен разрешаться в IP VPS; этот способ не останавливает nginx и поэтому подходит для текущей схемы.
 
 ```bash
 sudo certbot certonly --webroot -w /var/www/selfsteal -d {{NODE_DOMAIN}} --agree-tos -m {{LE_EMAIL}} --non-interactive
@@ -128,6 +148,11 @@ sudo certbot certonly --webroot -w /var/www/selfsteal -d {{NODE_DOMAIN}} --agree
 sudo install -d -m 0755 /etc/letsencrypt/renewal-hooks/deploy
 sudo tee /etc/letsencrypt/renewal-hooks/deploy/reload-nginx >/dev/null <<'HOOK'
 #!/bin/sh
+set -eu
+case " ${RENEWED_DOMAINS:-} " in
+  *" {{NODE_DOMAIN}} "*) ;;
+  *) exit 0 ;;
+esac
 nginx -t && systemctl reload nginx
 HOOK
 sudo chmod 0750 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx
@@ -135,7 +160,7 @@ sudo certbot renew --dry-run
 ```
 
 > **Проверка продления**  
-Команда certbot renew --dry-run должна завершиться успешно. Не запускай certbot в режиме standalone, если nginx уже слушает 80-й порт: используй webroot, как в примере.
+Команда `certbot renew --dry-run` должна завершиться успешно; в `systemctl list-timers --all | grep -i certbot` должен быть timer автопродления. Не запускай certbot в режиме standalone, если nginx уже слушает 80-й порт: используй webroot, как в примере.
 
 ## Настрой nginx для постоянной работы
 
@@ -278,6 +303,9 @@ sudo ss -ltnp | grep ":443" || true
 sudo systemctl status nginx --no-pager
 ```
 
+> **Важно: SNI в Self-steal**  
+Поле «Твои данные» показывает microsoft.com как пример. Для Self-steal замени SNI на свой {{NODE_DOMAIN}}: это же имя указано в сертификате локального nginx. Иначе проверка REALITY/SNI и сертификат fallback-сайта не совпадут.
+
 ## Добавь inbound в Remnawave
 
 В Config Profile добавь inbound VLESS с REALITY. Порт оставь 443. Сгенерируй privateKey и shortId средствами панели и используй именно эти значения. В поле назначения укажи локальный nginx:8443, а serverNames — имя, которое подходит для сертификата и сайта.
@@ -295,7 +323,7 @@ sudo systemctl status nginx --no-pager
       "show": false,
       "dest": "127.0.0.1:8443",
       "xver": 0,
-      "serverNames": ["{{NODE_DOMAIN}}"],
+      "serverNames": ["{{SNI}}"],
       "privateKey": "СГЕНЕРИРУЙ_В_ПАНЕЛИ",
       "shortIds": ["СГЕНЕРИРУЙ_В_ПАНЕЛИ"]
     }
@@ -310,9 +338,35 @@ sudo systemctl status nginx --no-pager
 > **Сверь структуру профиля**  
 Фрагмент показывает важные поля inbound, но конкретный Config Profile может требовать собственную структуру JSON и запятые вокруг блока. Не заменяй весь профиль целиком: добавь inbound по схеме своей версии панели и проверь конфигурацию перед применением.
 
+## Назначь Config Profile ноде
+
+Открой Nodes → Management → Create new node. Внутреннее имя, страну, Address и Port заполни по инструкции установки Node: Address/Port здесь относятся к управляющему соединению Panel ↔ Node, а не к клиентскому inbound 443. В карточке ноды открой Change Profile, выбери профиль с созданным VLESS inbound и включи этот inbound в списке активных. Сохрани и дождись статуса Online.
+
+## Разреши inbound в Internal Squad
+
+В Internal Squads создай или отредактируй нужную группу, включи в ней inbound из этого Config Profile и сохрани изменения. Затем в карточке каждого пользователя открой Access Settings и назначь ему эту Internal Squad. Без включённого inbound в Squad и членства пользователя доступ не появится.
+
+## Создай Host после включения inbound на ноде
+
+Открой Hosts → Create new host и выбери этот inbound. Задай Remark, включи видимость и укажи Address: {{NODE_DOMAIN}} (A-запись должна вести на публичный IP ноды). После выбора inbound Port обычно автоматически заполнится как 443. Host — адрес для клиента, он отличается от Node API адреса.
+
+| Поле Host | Что указать для Self-steal |
+| --- | --- |
+| Address | {{NODE_DOMAIN}} — клиентский домен ноды, DNS направлен на её публичный IP. |
+| Port | 443 — подтянется из выбранного inbound; nginx fallback остаётся на 127.0.0.1:8443. |
+| SNI | {{SNI}} — для Self-steal замени пример на {{NODE_DOMAIN}}; он должен совпасть с REALITY serverNames и сертификатом локального nginx. |
+| Host | Оставь пустым: RAW/TCP не использует HTTP Host header. |
+| Path | Оставь пустым: RAW/TCP не использует HTTP path. |
+| Fingerprint | Выбери Firefox. Если клиент не поддерживает его, выбери Safari или Edge из списка клиента; Chrome сейчас не рекомендуем. |
+| ALPN | Оставь пустым/default, если клиентская схема не требует явного значения. |
+| Security Layer | DEFAULT — унаследовать REALITY из inbound; не переключай в TLS или NONE. |
+
+> **Host overrides**  
+Пустые advanced поля обычно наследуют значения inbound. Address — внешний адрес клиента, Port — клиентский inbound, SNI — REALITY имя; Node API endpoint настраивается отдельно в карточке Node.
+
 ## Создай клиентскую конфигурацию
 
-Создай пользователя в панели и выпусти ссылку/QR-код. В клиенте должны совпадать UUID, публичный ключ, shortId и flow, если он включён на сервере. В качестве адреса используй IP ноды или домен, порт 443, а SNI/serverName — {{NODE_DOMAIN}}. Fingerprint выбери из поддерживаемых клиентом, например chrome.
+Создай пользователя в панели и выпусти ссылку/QR-код. В клиенте должны совпадать UUID, публичный ключ, shortId и flow, если он включён на сервере. Используй Address {{NODE_DOMAIN}}, порт 443 и SNI/serverName {{SNI}}. Fingerprint выбери Firefox; если он недоступен — Safari или Edge из списка клиента. Chrome сейчас не рекомендуем. Убедись, что пользователь назначен в Internal Squad с включённым inbound.
 
 Открой сайт по домену обычным браузером. Это проверит веб-fallback и сертификат. Отдельно проверь VPN-клиент: успешный ответ сайта не доказывает, что inbound получил актуальный профиль и доступен клиенту.
 

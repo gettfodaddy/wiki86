@@ -74,7 +74,7 @@ async function writeNavigation(value) {
 }
 const initialNavigation = await readNavigation();
 categories = new Set(initialNavigation.sections.map((section) => section.id));
-const selfstealSeedMarker = path.join(dataDir, '.selfsteal-seeded-v2');
+const selfstealSeedMarker = path.join(dataDir, '.selfsteal-seeded-v3');
 try { await stat(selfstealSeedMarker); }
 catch {
   const list = await readManuals();
