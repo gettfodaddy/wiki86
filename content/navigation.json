@@ -1,0 +1,50 @@
+{
+  "groups": [
+    {
+      "id": "manuals",
+      "title": "МАНУАЛЫ",
+      "icon": "book"
+    }
+  ],
+  "sections": [
+    {
+      "id": "remnawave",
+      "groupId": "manuals",
+      "title": "Remnawave",
+      "icon": "book",
+      "color": "#64e2c1",
+      "manualIds": [
+        "eccae6fe-6881-4b05-a7b6-fde54fbf8145",
+        "dfb5fe04-17c6-4786-a6d6-071edd43ab8e",
+        "6ea7b64b-031d-49b6-a6a3-75e1a24aba1c",
+        "f6e0b393-a91b-4618-8bc1-f9e26b69dd3a"
+      ]
+    },
+    {
+      "id": "protocols",
+      "groupId": "manuals",
+      "title": "Протоколы",
+      "icon": "network",
+      "color": "#f3bd70",
+      "manualIds": []
+    },
+    {
+      "id": "cdn",
+      "groupId": "manuals",
+      "title": "CDN",
+      "icon": "cloud",
+      "color": "#5bbdf2",
+      "manualIds": [
+        "339c4f92-4aa0-48e6-94bd-5cfe6134feb0"
+      ]
+    },
+    {
+      "id": "security",
+      "groupId": "manuals",
+      "title": "Безопасность",
+      "icon": "shield",
+      "color": "#ef88b7",
+      "manualIds": []
+    }
+  ]
+}

@@ -85,6 +85,67 @@ catch {
   await writeManuals(list);
   await writeFile(selfstealSeedMarker, '1\n', { mode: 0o600 });
 }
+
+async function seedBundledManuals() {
+  const bundledManualsPath = path.join(root, 'content', 'manuals.json');
+  const bundledNavigationPath = path.join(root, 'content', 'navigation.json');
+  let bundledManuals = [];
+  let bundledNavigation = null;
+  try {
+    bundledManuals = JSON.parse(await readFile(bundledManualsPath, 'utf8'));
+    bundledNavigation = JSON.parse(await readFile(bundledNavigationPath, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+
+  const manuals = await readManuals();
+  const bundledIdMap = new Map();
+  let manualsChanged = false;
+  for (const manual of bundledManuals) {
+    const existing = manuals.find((item) => item.path === manual.path);
+    if (existing) bundledIdMap.set(manual.id, existing.id);
+    else {
+      manuals.push(structuredClone(manual));
+      bundledIdMap.set(manual.id, manual.id);
+      manualsChanged = true;
+    }
+  }
+  if (manualsChanged) await writeManuals(manuals);
+
+  const navigation = await readNavigation();
+  let navigationChanged = false;
+  for (const group of bundledNavigation.groups || []) {
+    if (!navigation.groups.some((item) => item.id === group.id)) {
+      navigation.groups.push(structuredClone(group));
+      navigationChanged = true;
+    }
+  }
+  const validGroupIds = new Set(navigation.groups.map((group) => group.id));
+  for (const sourceSection of bundledNavigation.sections || []) {
+    let section = navigation.sections.find((item) => item.id === sourceSection.id);
+    if (!section) {
+      section = { ...structuredClone(sourceSection), manualIds: [] };
+      section.groupId = validGroupIds.has(section.groupId) ? section.groupId : navigation.groups[0].id;
+      navigation.sections.push(section);
+      navigationChanged = true;
+    }
+    const ids = (sourceSection.manualIds || []).map((id) => bundledIdMap.get(id)).filter(Boolean);
+    const currentIds = new Set(section.manualIds || []);
+    for (const id of ids) {
+      if (!currentIds.has(id)) {
+        section.manualIds = [...(section.manualIds || []), id];
+        currentIds.add(id);
+        navigationChanged = true;
+      }
+    }
+  }
+  if (navigationChanged) await writeNavigation(navigation);
+  categories = new Set(navigation.sections.map((section) => section.id));
+}
+
+await seedBundledManuals();
+
 function send(res, status, body, headers = {}) {
   res.writeHead(status, { 'Cache-Control': 'no-store', ...(typeof body === 'string' ? { 'Content-Type': 'text/plain; charset=utf-8' } : { 'Content-Type': 'application/json; charset=utf-8' }), ...headers });
   res.end(typeof body === 'string' ? body : JSON.stringify(body));

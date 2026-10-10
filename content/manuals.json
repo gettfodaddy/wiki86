@@ -1,0 +1,2062 @@
+[
+  {
+    "id": "eccae6fe-6881-4b05-a7b6-fde54fbf8145",
+    "title": "Установка Remnawave Panel",
+    "category": "remnawave",
+    "slug": "panel-install",
+    "path": "/manual/remnawave/panel-install",
+    "description": "Подготовьте сервер, задайте секреты и запустите панель. Настройте её через отдельный reverse proxy.",
+    "icon": "panel",
+    "blockSpacing": 14,
+    "toc": {
+      "enabled": true,
+      "items": [
+        {
+          "id": "toc-2",
+          "kind": "block",
+          "title": "Что понадобится",
+          "blockId": "step-2"
+        },
+        {
+          "id": "toc-3",
+          "kind": "block",
+          "title": "1. Установить Docker",
+          "blockId": "step-3"
+        },
+        {
+          "id": "toc-4",
+          "kind": "block",
+          "title": "2. Скачать файлы панели",
+          "blockId": "step-4"
+        },
+        {
+          "id": "toc-5",
+          "kind": "block",
+          "title": "3. Сгенерировать секреты",
+          "blockId": "step-5"
+        },
+        {
+          "id": "toc-6",
+          "kind": "block",
+          "title": "4. Заполнить домены",
+          "blockId": "step-6"
+        },
+        {
+          "id": "toc-7",
+          "kind": "block",
+          "title": "5. Запустить панель",
+          "blockId": "step-7"
+        },
+        {
+          "id": "toc-8",
+          "kind": "block",
+          "title": "Что дальше",
+          "blockId": "step-8"
+        },
+        {
+          "id": "toc-9",
+          "kind": "block",
+          "title": "Официальные материалы",
+          "blockId": "step-9"
+        }
+      ]
+    },
+    "status": "published",
+    "updated": false,
+    "blocks": [
+      {
+        "id": "user-data-panel-install",
+        "type": "data",
+        "title": "Твои данные",
+        "fields": [
+          {
+            "key": "PANEL_DOMAIN",
+            "label": "Домен панели",
+            "placeholder": "panel.example.com",
+            "help": "A-запись домена должна вести на сервер Panel."
+          }
+        ]
+      },
+      {
+        "id": "intro-1",
+        "type": "text",
+        "text": "Пошаговая установка панели Remnawave на сервер Ubuntu/Debian. Reverse proxy настраивается отдельно — см. [Мануал 2](/manual/remnawave/reverse-proxy). Панель без reverse proxy не предназначена для полноценной работы и не должна быть доступна напрямую из интернета."
+      },
+      {
+        "id": "step-2",
+        "type": "step",
+        "title": "Что понадобится",
+        "number": "01",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "0b51b024-252a-444f-b840-c9f066a40799",
+            "type": "text",
+            "text": "• Сервер Ubuntu/Debian с доступом по SSH и правами `sudo`."
+          },
+          {
+            "id": "104aa111-beec-4bb1-9fc6-6d596b8f3e58",
+            "type": "text",
+            "text": "• Домен панели, например `{{PANEL_DOMAIN}}`, и DNS-запись `A` (при использовании IPv6 также `AAAA`) на IP сервера."
+          },
+          {
+            "id": "996701fd-f7e2-4d41-a5af-e902439206d6",
+            "type": "text",
+            "text": "• Открытые входящие порты `80` и `443` для reverse proxy. Дополнительные требования к сертификату зависят от выбранного прокси."
+          },
+          {
+            "id": "c9f92992-1eee-47a1-b1b7-bdc3f992724a",
+            "type": "text",
+            "text": "• Docker Engine и Docker Compose plugin. Docker установим ниже."
+          },
+          {
+            "id": "01af1ca5-38b1-48fe-8193-fea1f386a90e",
+            "type": "text",
+            "text": "В примерах замени `{{PANEL_DOMAIN}}` на свой домен."
+          }
+        ]
+      },
+      {
+        "id": "step-3",
+        "type": "step",
+        "title": "1. Установить Docker",
+        "number": "02",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "6ca5da47-85cf-46e0-b75f-35813e590c32",
+            "type": "code",
+            "code": "sudo curl -fsSL https://get.docker.com | sh",
+            "language": "BASH"
+          }
+        ]
+      },
+      {
+        "id": "step-4",
+        "type": "step",
+        "title": "2. Скачать файлы панели",
+        "number": "03",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "aa99f42d-0109-4877-b8d2-54ae31d32260",
+            "type": "text",
+            "text": "Создай каталог проекта и загрузи актуальные compose-файл и шаблон переменных окружения из репозитория Remnawave:"
+          },
+          {
+            "id": "5de76d2d-164c-4a75-a82a-47c004f9568d",
+            "type": "code",
+            "code": "sudo mkdir -p /opt/remnawave\nsudo chown \"$USER\":\"$USER\" /opt/remnawave\ncd /opt/remnawave\ncurl -o docker-compose.yml https://raw.githubusercontent.com/remnawave/backend/refs/heads/main/docker-compose-prod.yml\ncurl -o .env https://raw.githubusercontent.com/remnawave/backend/refs/heads/main/.env.sample",
+            "language": "BASH"
+          }
+        ]
+      },
+      {
+        "id": "step-5",
+        "type": "step",
+        "title": "3. Сгенерировать секреты",
+        "number": "04",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "275dd660-9d72-4783-93a8-931e102b3fb0",
+            "type": "text",
+            "text": "Команды создадут случайные значения для секретов приложения и пароля PostgreSQL. Файл `.env` содержит чувствительные данные: оставь его доступным только администраторам и сохрани резервную копию в защищённом месте."
+          },
+          {
+            "id": "d644ea47-65d1-4b35-a9ac-4f4095e04c1a",
+            "type": "code",
+            "code": "sed -i \"s/^APP_SECRET=.*/APP_SECRET=$(openssl rand -hex 64)/\" .env\nsed -i \"s/^METRICS_PASS=.*/METRICS_PASS=$(openssl rand -hex 64)/\" .env\nsed -i \"s/^WEBHOOK_SECRET_HEADER=.*/WEBHOOK_SECRET_HEADER=$(openssl rand -hex 64)/\" .env\npw=$(openssl rand -hex 24)\nsed -i \"s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$pw/\" .env\nsed -i \"s|^\\(DATABASE_URL=\\\"postgresql://postgres:\\)[^\\@]*\\(@.*\\)|\\1$pw\\2|\" .env\nunset pw",
+            "language": "BASH"
+          }
+        ]
+      },
+      {
+        "id": "step-6",
+        "type": "step",
+        "title": "4. Заполнить домены",
+        "number": "05",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "e2344f20-58ee-47c5-8a8a-5032653657b7",
+            "type": "text",
+            "text": "Открой `.env`:"
+          },
+          {
+            "id": "7e39ae30-ed84-47e4-9d68-1335196c4248",
+            "type": "code",
+            "code": "nano /opt/remnawave/.env",
+            "language": "BASH"
+          },
+          {
+            "id": "9e811a88-e139-4a06-a2d3-ff6a38edf715",
+            "type": "text",
+            "text": "Укажи домен панели и временный публичный адрес подписки:"
+          },
+          {
+            "id": "a293b42d-574c-4178-80b0-fbedc3aa3854",
+            "type": "code",
+            "code": "FRONT_END_DOMAIN={{PANEL_DOMAIN}}\nSUB_PUBLIC_DOMAIN={{PANEL_DOMAIN}}/api/sub",
+            "language": "DOTENV"
+          },
+          {
+            "id": "eb2ce51e-e5dd-4f35-8755-87bac0b2f7b6",
+            "type": "text",
+            "text": "Значение `SUB_PUBLIC_DOMAIN` здесь оставь в указанном формате. Если позже будешь разворачивать отдельную страницу подписки, замени его на её домен согласно отдельному руководству Remnawave."
+          }
+        ]
+      },
+      {
+        "id": "step-7",
+        "type": "step",
+        "title": "5. Запустить панель",
+        "number": "06",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "4c16f356-7bee-45c1-bf90-584c7e3cdf20",
+            "type": "code",
+            "code": "cd /opt/remnawave\ndocker compose up -d\ndocker compose logs -f -t",
+            "language": "BASH"
+          },
+          {
+            "id": "81bcdd4b-5bea-4cbc-9045-4cfb906efcea",
+            "type": "text",
+            "text": "Выйти из просмотра логов можно сочетанием `Ctrl+C`; контейнеры продолжат работать."
+          }
+        ]
+      },
+      {
+        "id": "step-8",
+        "type": "step",
+        "title": "Что дальше",
+        "number": "07",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "cfe820ee-6e0d-4363-9286-f8f3298ea236",
+            "type": "text",
+            "text": "Настрой reverse proxy отдельным мануалом: [Nginx или Caddy для Remnawave](/manual/remnawave/reverse-proxy). Служебные сервисы панели не открывай напрямую в интернет: доступ к ним должен идти через прокси, а не через публичные порты контейнеров."
+          }
+        ]
+      },
+      {
+        "id": "step-9",
+        "type": "step",
+        "title": "Официальные материалы",
+        "number": "08",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "39a88faf-9bdd-4b39-ac56-6fc5226fa078",
+            "type": "text",
+            "text": "• [Quick Start Remnawave](https://docs.rw/overview/quick-start/)"
+          },
+          {
+            "id": "7f755cc6-31d1-41b4-9f41-cb8d6b823f26",
+            "type": "text",
+            "text": "• [Требования](https://docs.rw/install/requirements/)"
+          },
+          {
+            "id": "fa17a371-2241-492f-8d3a-8cc33b6c6818",
+            "type": "text",
+            "text": "• [Установка Remnawave Panel](https://docs.rw/install/remnawave-panel/)"
+          },
+          {
+            "id": "dc7bda4a-853c-4f8e-8d68-1cddd47989b1",
+            "type": "text",
+            "text": "• [Переменные окружения](https://docs.rw/install/environment-variables/)"
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-10-10T01:19:52.496Z",
+    "updatedAt": "2026-10-10T01:20:56.389Z"
+  },
+  {
+    "id": "dfb5fe04-17c6-4786-a6d6-071edd43ab8e",
+    "title": "Установка Remnawave Node",
+    "category": "remnawave",
+    "slug": "node-install",
+    "path": "/manual/remnawave/node-install",
+    "description": "Добавьте ноду в панели, запустите выданный Compose-файл и проверьте защищённое соединение с Panel.",
+    "icon": "terminal",
+    "blockSpacing": 14,
+    "toc": {
+      "enabled": true,
+      "items": [
+        {
+          "id": "toc-2",
+          "kind": "block",
+          "title": "Что понадобится",
+          "blockId": "step-2"
+        },
+        {
+          "id": "toc-3",
+          "kind": "block",
+          "title": "1. Установить Docker на сервер ноды",
+          "blockId": "step-3"
+        },
+        {
+          "id": "toc-4",
+          "kind": "block",
+          "title": "2. Создать ноду в панели",
+          "blockId": "step-4"
+        },
+        {
+          "id": "toc-5",
+          "kind": "block",
+          "title": "3. Развернуть compose на ноде",
+          "blockId": "step-5"
+        },
+        {
+          "id": "toc-6",
+          "kind": "block",
+          "title": "4. Завершить добавление в панели",
+          "blockId": "step-6"
+        },
+        {
+          "id": "toc-7",
+          "kind": "block",
+          "title": "5. Ограничить доступ к Node Port",
+          "blockId": "step-7"
+        },
+        {
+          "id": "toc-8",
+          "kind": "block",
+          "title": "Проверка результата",
+          "blockId": "step-8"
+        },
+        {
+          "id": "toc-9",
+          "kind": "block",
+          "title": "Официальные материалы",
+          "blockId": "step-9"
+        }
+      ]
+    },
+    "status": "published",
+    "updated": false,
+    "blocks": [
+      {
+        "id": "user-data-node-install",
+        "type": "data",
+        "title": "Твои данные",
+        "fields": [
+          {
+            "key": "NODE_DIR",
+            "label": "Каталог Node",
+            "placeholder": "/opt/remnanode",
+            "help": "Каталог, в котором лежит docker-compose.yml ноды."
+          }
+        ]
+      },
+      {
+        "id": "intro-1",
+        "type": "text",
+        "text": "Remnawave Node — отдельный контейнер с Xray-core. Панель не включает Xray-core, поэтому для полноценной работы нужна как минимум одна нода. Рекомендуется устанавливать её на отдельный сервер."
+      },
+      {
+        "id": "step-2",
+        "type": "step",
+        "title": "Что понадобится",
+        "number": "01",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "0923558c-b8b7-4835-a97d-4a5ff735f0a7",
+            "type": "text",
+            "text": "• Уже установленная и доступная Remnawave Panel."
+          },
+          {
+            "id": "1703855b-0628-4658-81f1-2363cd66d982",
+            "type": "text",
+            "text": "• Отдельный сервер Ubuntu/Debian с SSH и правами `sudo`."
+          },
+          {
+            "id": "b46a1f65-7e87-4874-a15d-920366fbba43",
+            "type": "text",
+            "text": "• Docker Engine с Docker Compose plugin."
+          },
+          {
+            "id": "7bb967c1-a704-4763-bf81-1147da3d1789",
+            "type": "text",
+            "text": "• Сетевой доступ от сервера панели к ноде на заданном `Node Port`."
+          }
+        ]
+      },
+      {
+        "id": "step-3",
+        "type": "step",
+        "title": "1. Установить Docker на сервер ноды",
+        "number": "02",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "646d590f-9cae-4a83-a2a7-200eeac87747",
+            "type": "text",
+            "text": "Подключись по SSH к **серверу ноды**, а не к серверу панели:"
+          },
+          {
+            "id": "640cc525-d0eb-4af0-9678-fedfe2582cdd",
+            "type": "code",
+            "code": "sudo curl -fsSL https://get.docker.com | sh",
+            "language": "BASH"
+          }
+        ]
+      },
+      {
+        "id": "step-4",
+        "type": "step",
+        "title": "2. Создать ноду в панели",
+        "number": "03",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "3034091b-1b5b-4231-bd2d-dda503123b20",
+            "type": "text",
+            "text": "• Открой в панели **Nodes → Management** и нажми кнопку добавления ноды."
+          },
+          {
+            "id": "a6ac1c4b-73f2-4519-84e3-030d1253c689",
+            "type": "text",
+            "text": "• Заполни форму: имя, адрес сервера ноды и остальные требуемые поля."
+          },
+          {
+            "id": "3808da46-2677-4ce9-808e-f546b87f220a",
+            "type": "text",
+            "text": "• Обрати внимание на `Node Port`: через него панель отправляет ноде внутренние API-запросы. Это не порт пользовательского подключения."
+          },
+          {
+            "id": "49333b9b-39c4-4dd3-9a0c-31bde056f2a8",
+            "type": "text",
+            "text": "• Нажми **Copy docker-compose.yml**, чтобы скопировать сгенерированный конфиг."
+          },
+          {
+            "id": "5aab083a-fefd-4245-adda-44b4e4509cfc",
+            "type": "text",
+            "text": "Не придумывай compose-конфигурацию вручную и не меняй выданные панелью значения без необходимости."
+          }
+        ]
+      },
+      {
+        "id": "step-5",
+        "type": "step",
+        "title": "3. Развернуть compose на ноде",
+        "number": "04",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "1b69046f-07fb-4914-ab63-bf185553790e",
+            "type": "text",
+            "text": "На сервере ноды выполни:"
+          },
+          {
+            "id": "6e90d413-c4d2-4600-b50c-42350c9a4772",
+            "type": "code",
+            "code": "sudo mkdir -p {{NODE_DIR}}\nsudo chown \"$USER\":\"$USER\" {{NODE_DIR}}\ncd {{NODE_DIR}}\nnano docker-compose.yml",
+            "language": "BASH"
+          },
+          {
+            "id": "53133b09-aef8-49ba-8621-b8e263d0c028",
+            "type": "text",
+            "text": "Вставь конфигурацию, скопированную из панели, и сохрани файл. Запусти контейнеры:"
+          },
+          {
+            "id": "01dc68ad-b3a6-4ce2-8c2c-39e1db6568cc",
+            "type": "code",
+            "code": "docker compose up -d\ndocker compose logs -f -t",
+            "language": "BASH"
+          },
+          {
+            "id": "268717e0-ace8-4ccb-8c58-2dd50b47f66f",
+            "type": "text",
+            "text": "Для выхода из просмотра логов нажми `Ctrl+C` — контейнер продолжит работать."
+          }
+        ]
+      },
+      {
+        "id": "step-6",
+        "type": "step",
+        "title": "4. Завершить добавление в панели",
+        "number": "05",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "c4de8d7b-c278-4c1f-b6e2-f4ce0a622aef",
+            "type": "text",
+            "text": "Вернись к карточке создания ноды в панели:"
+          },
+          {
+            "id": "31507595-64a0-437c-a2ef-0e92550fa924",
+            "type": "text",
+            "text": "• Нажми **Next**."
+          },
+          {
+            "id": "10c38b02-3040-48cf-a92b-1c6d682436f6",
+            "type": "text",
+            "text": "• Выбери нужный **Config Profile**."
+          },
+          {
+            "id": "2baf388d-a65b-46c4-aadb-40e9817b4e50",
+            "type": "text",
+            "text": "• Нажми **Create**."
+          },
+          {
+            "id": "218850ab-a522-4aa4-9ff1-54f37c3b3a8e",
+            "type": "text",
+            "text": "После подключения панель должна увидеть ноду. Проверь её состояние в списке Nodes."
+          }
+        ]
+      },
+      {
+        "id": "step-7",
+        "type": "step",
+        "title": "5. Ограничить доступ к Node Port",
+        "number": "06",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "8ae6ce6e-4658-4a1e-9605-a4821d54f76d",
+            "type": "text",
+            "text": "В firewall сервера ноды разреши входящий `Node Port` только с IP-адреса панели. Для остальных адресов этот порт закрой. Клиентские порты и правила доступа задаются отдельно в настройках профиля и firewall."
+          }
+        ]
+      },
+      {
+        "id": "step-8",
+        "type": "step",
+        "title": "Проверка результата",
+        "number": "07",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "1b1d5551-f9d0-458b-b51a-d8acbbccced7",
+            "type": "text",
+            "text": "• Контейнер ноды запущен: `docker compose ps`."
+          },
+          {
+            "id": "6f615678-2fa5-4435-b7b5-144bd10282c8",
+            "type": "text",
+            "text": "• В логах контейнера нет ошибок подключения."
+          },
+          {
+            "id": "f36605b1-1caf-4a3a-9aaa-5a8d3ddddf25",
+            "type": "text",
+            "text": "• Нода отображается в панели в рабочем состоянии."
+          },
+          {
+            "id": "ff7a5a6a-cc1a-463e-9c46-496d48c1b733",
+            "type": "text",
+            "text": "• `Node Port` доступен серверу панели, но закрыт от остальных источников."
+          }
+        ]
+      },
+      {
+        "id": "step-9",
+        "type": "step",
+        "title": "Официальные материалы",
+        "number": "08",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "09957441-b8f4-4fd8-a2cb-b2c02775027c",
+            "type": "text",
+            "text": "• [Установка Remnawave Node](https://docs.rw/install/remnawave-node/)"
+          },
+          {
+            "id": "03737e99-e7cb-4b5e-a474-6031f17579f4",
+            "type": "text",
+            "text": "• [Требования](https://docs.rw/install/requirements/)"
+          },
+          {
+            "id": "3af46821-95b8-4c31-b649-39fa215ec558",
+            "type": "text",
+            "text": "• [Quick Start Remnawave](https://docs.rw/overview/quick-start/)"
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-10-10T01:19:52.511Z",
+    "updatedAt": "2026-10-10T01:20:56.405Z"
+  },
+  {
+    "id": "6ea7b64b-031d-49b6-a6a3-75e1a24aba1c",
+    "title": "Reverse proxy для Remnawave",
+    "category": "remnawave",
+    "slug": "reverse-proxy",
+    "path": "/manual/remnawave/reverse-proxy",
+    "description": "Выберите один вариант публикации панели: Caddy с автоматическим TLS или Nginx с acme.sh.",
+    "icon": "network",
+    "blockSpacing": 14,
+    "toc": {
+      "enabled": true,
+      "items": [
+        {
+          "id": "toc-2",
+          "kind": "block",
+          "title": "Перед настройкой",
+          "blockId": "step-2"
+        },
+        {
+          "id": "toc-3",
+          "kind": "block",
+          "title": "Вариант A. Caddy с автоматическим TLS",
+          "blockId": "step-3"
+        },
+        {
+          "id": "toc-4",
+          "kind": "block",
+          "title": "Вариант B. Nginx и сертификат acme.sh",
+          "blockId": "step-4"
+        },
+        {
+          "id": "toc-5",
+          "kind": "block",
+          "title": "Проверка результата",
+          "blockId": "step-5"
+        },
+        {
+          "id": "toc-6",
+          "kind": "block",
+          "title": "Официальные материалы",
+          "blockId": "step-6"
+        }
+      ]
+    },
+    "status": "published",
+    "updated": false,
+    "blocks": [
+      {
+        "id": "user-data-reverse-proxy",
+        "type": "data",
+        "title": "Твои данные",
+        "fields": [
+          {
+            "key": "PANEL_DOMAIN",
+            "label": "Домен панели",
+            "placeholder": "panel.example.com",
+            "help": "Используется в DNS, TLS и конфигурации прокси."
+          },
+          {
+            "key": "LE_EMAIL",
+            "label": "Почта сертификата",
+            "placeholder": "mail@example.com",
+            "help": "Адрес уведомлений acme.sh."
+          },
+          {
+            "key": "PANEL_DIR",
+            "label": "Каталог Panel",
+            "placeholder": "/opt/remnawave",
+            "help": "Каталог установки панели на сервере."
+          }
+        ]
+      },
+      {
+        "id": "intro-1",
+        "type": "text",
+        "text": "Reverse proxy принимает запросы по домену и передаёт их панели внутри Docker-сети. Сначала установи панель по [Мануалу 1](/manual/remnawave/panel-install), затем выбери **один** вариант ниже. Не запускай Nginx и Caddy одновременно на портах `80` и `443`."
+      },
+      {
+        "id": "step-2",
+        "type": "step",
+        "title": "Перед настройкой",
+        "number": "01",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "a8e6f416-887d-4e03-a9de-b59eaf4a2f50",
+            "type": "text",
+            "text": "• Создай DNS-запись домена панели, например `{{PANEL_DOMAIN}}`, на публичный IP сервера."
+          },
+          {
+            "id": "f61f9bad-76aa-4d76-a15a-d443e4c40a5b",
+            "type": "text",
+            "text": "• Проверь, что DNS уже указывает на нужный сервер."
+          },
+          {
+            "id": "38c75400-745f-4c99-914f-9ef6a6f4dfc9",
+            "type": "text",
+            "text": "• Разреши входящие соединения на `80` и `443` в firewall сервера и панели хостинга."
+          },
+          {
+            "id": "3dad0303-e17a-4eb4-902c-847dd76799ef",
+            "type": "text",
+            "text": "• Примеры ниже подключают прокси к панели по имени `remnawave:3000` во внешней Docker-сети `remnawave-network`, созданной compose-файлом Remnawave."
+          }
+        ]
+      },
+      {
+        "id": "step-3",
+        "type": "step",
+        "title": "Вариант A. Caddy с автоматическим TLS",
+        "number": "02",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "b8ef2710-6a1a-4211-b757-6f763eeda8be",
+            "type": "text",
+            "text": "Caddy сам получает и продлевает публичный TLS-сертификат. DNS должен указывать на сервер, а порты `80` и `443` должны быть доступны извне."
+          },
+          {
+            "id": "c75e9606-126c-4608-9529-c08644af218f",
+            "type": "text",
+            "text": "**1. Создать Caddyfile**"
+          },
+          {
+            "id": "c288169f-0494-4cd9-9643-9dbf666270ba",
+            "type": "code",
+            "code": "sudo mkdir -p {{PANEL_DIR}}/caddy\ncd {{PANEL_DIR}}/caddy\nsudo nano Caddyfile",
+            "language": "BASH"
+          },
+          {
+            "id": "deffd578-39b9-410d-bced-493b147c3248",
+            "type": "text",
+            "text": "Вставь конфигурацию, заменив `{{PANEL_DOMAIN}}` на свой домен:"
+          },
+          {
+            "id": "3ce6aeea-73b5-43cb-a4a9-80dbae50b723",
+            "type": "code",
+            "code": "https://{{PANEL_DOMAIN}} {\n    encode\n    reverse_proxy * http://remnawave:3000\n}\n\n:443 {\n    tls internal\n    respond 204\n}",
+            "language": "CADDYFILE"
+          },
+          {
+            "id": "1797db7e-200e-43d1-abaa-9847671d4ba3",
+            "type": "text",
+            "text": "**2. Создать compose-файл Caddy**"
+          },
+          {
+            "id": "7be70c25-551a-470b-b64f-a746807e678e",
+            "type": "code",
+            "code": "sudo nano {{PANEL_DIR}}/caddy/docker-compose.yml",
+            "language": "BASH"
+          },
+          {
+            "id": "c31b850f-779e-4a05-a60d-10464a7850d1",
+            "type": "code",
+            "code": "services:\n  caddy:\n    image: caddy:2.9\n    container_name: caddy\n    hostname: caddy\n    restart: always\n    ports:\n      - '0.0.0.0:443:443'\n      - '0.0.0.0:80:80'\n    networks:\n      - remnawave-network\n    volumes:\n      - ./Caddyfile:/etc/caddy/Caddyfile\n      - caddy-ssl-data:/data\n\nnetworks:\n  remnawave-network:\n    name: remnawave-network\n    driver: bridge\n    external: true\n\nvolumes:\n  caddy-ssl-data:\n    driver: local\n    name: caddy-ssl-data",
+            "language": "YAML"
+          },
+          {
+            "id": "9a0ddc89-ed18-4709-9245-9cd5ffa612b0",
+            "type": "text",
+            "text": "**3. Запустить и проверить**"
+          },
+          {
+            "id": "8044675f-c223-4e55-b8fe-721a19239bc3",
+            "type": "code",
+            "code": "cd {{PANEL_DIR}}/caddy\nsudo docker compose up -d\nsudo docker compose logs -f -t",
+            "language": "BASH"
+          },
+          {
+            "id": "98ec518d-0d19-4808-b267-58d73638c6c0",
+            "type": "text",
+            "text": "Открой `https://{{PANEL_DOMAIN}}`. Должна появиться страница входа Remnawave."
+          }
+        ]
+      },
+      {
+        "id": "step-4",
+        "type": "step",
+        "title": "Вариант B. Nginx и сертификат acme.sh",
+        "number": "03",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "a531950f-2c0b-4873-9b35-c458d6df89ae",
+            "type": "text",
+            "text": "В этом варианте сертификат выпускается через `acme.sh` в standalone-режиме. Для выпуска и последующего продления должен быть доступен и свободен порт `8443`. Официальное руководство Remnawave предупреждает, что ZeroSSL не поддерживает зоны `.ru`, `.su` и `.рф` в описанном способе выпуска."
+          },
+          {
+            "id": "8553d682-89cd-4d90-9cf4-ac6a6197bbbe",
+            "type": "text",
+            "text": "**1. Установить зависимости и acme.sh**"
+          },
+          {
+            "id": "96ab603b-7445-4ea3-be88-4cc95065e34d",
+            "type": "code",
+            "code": "sudo apt-get update\nsudo apt-get install -y cron socat\ncurl https://get.acme.sh | sh -s email={{LE_EMAIL}}\nsource ~/.bashrc\nsudo mkdir -p {{PANEL_DIR}}/nginx\nsudo chown \"$USER\":\"$USER\" {{PANEL_DIR}}/nginx\ncd {{PANEL_DIR}}/nginx",
+            "language": "BASH"
+          },
+          {
+            "id": "f81c904b-1f97-4866-a9da-b6978dad5db1",
+            "type": "text",
+            "text": "Замени `EMAIL` на действующий адрес и `{{PANEL_DOMAIN}}` на домен панели:"
+          },
+          {
+            "id": "4c972695-535a-4d19-912b-601c4f5be655",
+            "type": "code",
+            "code": "acme.sh --issue --standalone -d '{{PANEL_DOMAIN}}' \\\n  --key-file {{PANEL_DIR}}/nginx/privkey.key \\\n  --fullchain-file {{PANEL_DIR}}/nginx/fullchain.pem \\\n  --alpn --tlsport 8443 \\\n  --reloadcmd \"docker exec remnawave-nginx nginx -s reload\"\n\nacme.sh --install-cert -d '{{PANEL_DOMAIN}}' \\\n  --key-file {{PANEL_DIR}}/nginx/privkey.key \\\n  --fullchain-file {{PANEL_DIR}}/nginx/fullchain.pem \\\n  --reloadcmd \"docker exec remnawave-nginx nginx -s reload\"",
+            "language": "BASH"
+          },
+          {
+            "id": "7e346a55-600b-4349-89d1-5514fb5949cf",
+            "type": "text",
+            "text": "**2. Создать конфигурацию Nginx**"
+          },
+          {
+            "id": "3a6c20b2-11d5-43de-b0f6-7af9e8805235",
+            "type": "code",
+            "code": "sudo nano {{PANEL_DIR}}/nginx/nginx.conf",
+            "language": "BASH"
+          },
+          {
+            "id": "a4913909-8acf-4009-ba1f-33a76b49191b",
+            "type": "code",
+            "code": "upstream remnawave {\n    server remnawave:3000;\n}\n\nmap $http_upgrade $connection_upgrade {\n    default upgrade;\n    \"\" close;\n}\n\nserver {\n    server_name {{PANEL_DOMAIN}};\n    listen 443 ssl reuseport;\n    listen [::]:443 ssl reuseport;\n    http2 on;\n\n    location / {\n        proxy_http_version 1.1;\n        proxy_pass http://remnawave;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header Upgrade $http_upgrade;\n        proxy_set_header Connection $connection_upgrade;\n    }\n\n    ssl_protocols TLSv1.2 TLSv1.3;\n    ssl_session_timeout 1d;\n    ssl_session_cache shared:MozSSL:10m;\n    ssl_session_tickets off;\n    ssl_certificate /etc/nginx/ssl/fullchain.pem;\n    ssl_certificate_key /etc/nginx/ssl/privkey.key;\n    ssl_trusted_certificate /etc/nginx/ssl/fullchain.pem;\n}\n\nserver {\n    listen 443 ssl default_server;\n    listen [::]:443 ssl default_server;\n    server_name _;\n    ssl_reject_handshake on;\n}",
+            "language": "NGINX"
+          },
+          {
+            "id": "e222d5c2-079b-42f1-a980-f7f329b47295",
+            "type": "text",
+            "text": "**3. Создать compose-файл Nginx**"
+          },
+          {
+            "id": "8ace7bb1-36cf-4e5d-86a0-d31bbc11a8ff",
+            "type": "code",
+            "code": "sudo nano {{PANEL_DIR}}/nginx/docker-compose.yml",
+            "language": "BASH"
+          },
+          {
+            "id": "1ac1daae-8fb4-401f-8b7a-86549a4eedfa",
+            "type": "code",
+            "code": "services:\n  remnawave-nginx:\n    image: nginx:1.30\n    container_name: remnawave-nginx\n    hostname: remnawave-nginx\n    volumes:\n      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro\n      - ./fullchain.pem:/etc/nginx/ssl/fullchain.pem:ro\n      - ./privkey.key:/etc/nginx/ssl/privkey.key:ro\n    restart: always\n    ports:\n      - '0.0.0.0:443:443'\n    networks:\n      - remnawave-network\n\nnetworks:\n  remnawave-network:\n    name: remnawave-network\n    driver: bridge\n    external: true",
+            "language": "YAML"
+          },
+          {
+            "id": "f7d3a254-87e6-48a7-be52-1c385742a5c9",
+            "type": "text",
+            "text": "**4. Запустить и проверить Nginx**"
+          },
+          {
+            "id": "7417dafd-7daa-4a4b-a0df-a98f9d315566",
+            "type": "code",
+            "code": "cd {{PANEL_DIR}}/nginx\nsudo docker compose up -d\nsudo docker exec remnawave-nginx nginx -t\nsudo docker compose logs -f -t",
+            "language": "BASH"
+          },
+          {
+            "id": "183b83de-9f7f-4bab-aacb-fd54e8ecdd98",
+            "type": "text",
+            "text": "Открой `https://{{PANEL_DOMAIN}}`. При изменениях конфигурации проверяй её через `docker exec remnawave-nginx nginx -t` перед перезапуском."
+          }
+        ]
+      },
+      {
+        "id": "step-5",
+        "type": "step",
+        "title": "Проверка результата",
+        "number": "04",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "d1c6af84-a89b-4a4c-af4b-608a1fb59848",
+            "type": "text",
+            "text": "• Панель открывается по домену через HTTPS и показывает страницу входа."
+          },
+          {
+            "id": "0e0357f8-fecc-46a0-af44-a47e9c5092d3",
+            "type": "text",
+            "text": "• Сертификат выдан на правильное доменное имя и действителен."
+          },
+          {
+            "id": "a6a0f7e4-faa9-4e39-88e1-0f96f1f217c8",
+            "type": "text",
+            "text": "• Служебные порты контейнеров панели не опубликованы напрямую в интернет."
+          },
+          {
+            "id": "b45d819b-4bc4-4126-964a-dd2305e57be2",
+            "type": "text",
+            "text": "• Для варианта Nginx порт `8443` доступен для выпуска и автоматического продления сертификата."
+          },
+          {
+            "id": "a75b08fd-8e32-4d4e-8e0a-2ce2ed2ab59f",
+            "type": "text",
+            "text": "Remnawave не следует публиковать из подкаталога вида `/remnawave`. Используй корень домена или отдельный поддомен."
+          }
+        ]
+      },
+      {
+        "id": "step-6",
+        "type": "step",
+        "title": "Официальные материалы",
+        "number": "05",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "83829c8f-8578-47a3-9369-5c7489997f77",
+            "type": "text",
+            "text": "• [Обзор reverse proxy](https://docs.rw/install/reverse-proxies/)"
+          },
+          {
+            "id": "993bb6ae-ef2c-46ee-8a46-f895e387eff5",
+            "type": "text",
+            "text": "• [Reverse proxy на Caddy](https://docs.rw/install/reverse-proxies/caddy/)"
+          },
+          {
+            "id": "bb9198d4-9ca7-42e7-849d-55703ad48076",
+            "type": "text",
+            "text": "• [Reverse proxy на Nginx](https://docs.rw/install/reverse-proxies/nginx/)"
+          },
+          {
+            "id": "b789471f-18d8-4e3b-a3c6-4ed8b8c74657",
+            "type": "text",
+            "text": "• [Установка Remnawave Panel](https://docs.rw/install/remnawave-panel/)"
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-10-10T01:19:52.526Z",
+    "updatedAt": "2026-10-10T01:20:56.415Z"
+  },
+  {
+    "id": "f6e0b393-a91b-4618-8bc1-f9e26b69dd3a",
+    "title": "Обновление Remnawave",
+    "category": "remnawave",
+    "slug": "update",
+    "path": "/manual/remnawave/update",
+    "description": "Обновите Panel и ноды в безопасном порядке, сохраните резервную копию и проверьте состояние сервисов.",
+    "icon": "panel",
+    "blockSpacing": 14,
+    "toc": {
+      "enabled": true,
+      "items": [
+        {
+          "id": "toc-1",
+          "kind": "block",
+          "title": "Перед обновлением",
+          "blockId": "step-1"
+        },
+        {
+          "id": "toc-2",
+          "kind": "block",
+          "title": "1. Обновление панели",
+          "blockId": "step-2"
+        },
+        {
+          "id": "toc-3",
+          "kind": "block",
+          "title": "2. Обновление нод",
+          "blockId": "step-3"
+        },
+        {
+          "id": "toc-4",
+          "kind": "block",
+          "title": "3. Завершение",
+          "blockId": "step-4"
+        },
+        {
+          "id": "toc-5",
+          "kind": "block",
+          "title": "Важно",
+          "blockId": "step-5"
+        }
+      ]
+    },
+    "status": "published",
+    "updated": false,
+    "blocks": [
+      {
+        "id": "user-data-update",
+        "type": "data",
+        "title": "Твои данные",
+        "fields": [
+          {
+            "key": "PANEL_DIR",
+            "label": "Каталог Panel",
+            "placeholder": "/opt/remnawave",
+            "help": "Путь к Compose-файлу панели."
+          },
+          {
+            "key": "NODE_DIR",
+            "label": "Каталог Node",
+            "placeholder": "/opt/remnanode",
+            "help": "Путь к Compose-файлу ноды."
+          }
+        ]
+      },
+      {
+        "id": "step-1",
+        "type": "step",
+        "title": "Перед обновлением",
+        "number": "01",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "bf8f61d1-375a-4249-9958-f762dedb8bdf",
+            "type": "text",
+            "text": "• Проверьте [официальный changelog Remnawave](https://github.com/remnawave/panel/releases) и прочитайте примечания к версии: для отдельных релизов могут быть дополнительные действия."
+          },
+          {
+            "id": "e69be91e-22fc-4dc8-acef-8e5350b77fab",
+            "type": "text",
+            "text": "• Сохраните резервную копию базы данных панели, а также файлов `.env` и `docker-compose.yml`."
+          },
+          {
+            "id": "be13ecd0-fd26-4de4-8076-5efd0b180a8e",
+            "type": "text",
+            "text": "• Обновляйте панель первой, затем ноды — по одной ноде за раз."
+          },
+          {
+            "id": "41873d86-45f2-4690-90e8-95576d2e47d1",
+            "type": "text",
+            "text": "Официальная инструкция: [Remnawave Upgrading](https://docs.rw/install/upgrading/)."
+          }
+        ]
+      },
+      {
+        "id": "step-2",
+        "type": "step",
+        "title": "1. Обновление панели",
+        "number": "02",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "523bcbd0-7a57-4901-9987-5b3239a88947",
+            "type": "text",
+            "text": "Выполните на сервере панели:"
+          },
+          {
+            "id": "829cf80d-ceaa-4655-8d4e-f44b18e32aea",
+            "type": "code",
+            "code": "cd {{PANEL_DIR}}\ndocker compose pull\ndocker compose down\ndocker compose up -d\ndocker compose logs -f",
+            "language": "BASH"
+          },
+          {
+            "id": "fc47c450-57c7-4e45-b472-31aafe90fbb8",
+            "type": "text",
+            "text": "Дождитесь запуска контейнеров и проверьте логи. Чтобы выйти из просмотра логов, нажмите `Ctrl+C`. Это остановит только просмотр логов."
+          },
+          {
+            "id": "506c6e5e-8898-458c-8b32-dac2f2c326a5",
+            "type": "text",
+            "text": "Проверьте состояние контейнеров:"
+          },
+          {
+            "id": "e9096360-655c-4176-9cca-dd27fabecf26",
+            "type": "code",
+            "code": "docker compose ps",
+            "language": "BASH"
+          }
+        ]
+      },
+      {
+        "id": "step-3",
+        "type": "step",
+        "title": "2. Обновление нод",
+        "number": "03",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "8475d686-9310-467a-8818-5f1a9be8404d",
+            "type": "text",
+            "text": "На каждом сервере с установленной нодой выполняйте команды отдельно. В вашей установке каталог Remnawave Node — `{{NODE_DIR}}`. Переходите к следующей ноде после проверки предыдущей:"
+          },
+          {
+            "id": "21a07e0e-1296-4362-9f04-9ae8002055cf",
+            "type": "code",
+            "code": "cd {{NODE_DIR}}\ndocker compose pull\ndocker compose down\ndocker compose up -d\ndocker compose logs -f",
+            "language": "BASH"
+          },
+          {
+            "id": "c97a480a-14c7-48e2-a6e4-36947d7bfbb3",
+            "type": "text",
+            "text": "Дождитесь запуска и проверьте статус контейнера:"
+          },
+          {
+            "id": "177d7975-534b-4894-8637-5a95bb23f088",
+            "type": "code",
+            "code": "docker compose ps",
+            "language": "BASH"
+          },
+          {
+            "id": "585a5a10-5334-468c-9b6a-20de45cbce98",
+            "type": "text",
+            "text": "Проверьте логи Xray внутри контейнера Remnawave Node:"
+          },
+          {
+            "id": "7c84d32b-9171-4b71-a7e3-b86e1d61bb81",
+            "type": "code",
+            "code": "docker exec remnanode xlogs",
+            "language": "BASH"
+          },
+          {
+            "id": "733e91d2-c261-43ca-8580-74ba2cfdafd0",
+            "type": "text",
+            "text": "Остановить просмотр логов можно нажатием `Ctrl+C`."
+          }
+        ]
+      },
+      {
+        "id": "step-4",
+        "type": "step",
+        "title": "3. Завершение",
+        "number": "04",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "a06b6a05-c7ad-4405-a2f6-8d885828e0a8",
+            "type": "text",
+            "text": "После обновления всех нод откройте панель и проверьте, что ноды подключены. Если changelog установленной версии требует принудительного перезапуска нод, выполните это действие в панели: **Nodes → Management**."
+          }
+        ]
+      },
+      {
+        "id": "step-5",
+        "type": "step",
+        "title": "Важно",
+        "number": "05",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "852f463c-5359-4345-8622-caf0174ecc99",
+            "type": "text",
+            "text": "• Команда `docker compose down` останавливает и удаляет контейнеры Compose, но сохраняет данные в Docker volumes."
+          },
+          {
+            "id": "fe2174b2-3cb6-424b-a880-f3fdfc3c7173",
+            "type": "text",
+            "text": "• Не добавляйте `-v` к `docker compose down`: этот флаг удаляет volumes."
+          },
+          {
+            "id": "d994cf77-4638-4755-96cd-559e98fa7808",
+            "type": "text",
+            "text": "• Во время перезапуска конкретной ноды её активные VPN-соединения прервутся. Поэтому обновляйте ноды по очереди."
+          },
+          {
+            "id": "8ee60671-1cfd-44f2-b6aa-942ddd9b307f",
+            "type": "text",
+            "text": "• Не заменяйте `.env` и `docker-compose.yml` файлами из новой установки: используйте текущие файлы и инструкции из changelog."
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-10-10T01:19:52.541Z",
+    "updatedAt": "2026-10-10T01:20:56.435Z"
+  },
+  {
+    "id": "339c4f92-4aa0-48e6-94bd-5cfe6134feb0",
+    "title": "Remnawave за Yandex Cloud CDN",
+    "category": "cdn",
+    "slug": "yandex-cdn",
+    "path": "/manual/cdn/yandex-cdn",
+    "description": "Настройте XHTTP inbound, origin с TLS, CDN-сертификат и DNS, затем проверьте подключение реальным клиентом.",
+    "icon": "cloud",
+    "blockSpacing": 14,
+    "toc": {
+      "enabled": true,
+      "items": [
+        {
+          "id": "toc-1",
+          "kind": "block",
+          "title": "Что получится",
+          "blockId": "step-1"
+        },
+        {
+          "id": "toc-2",
+          "kind": "block",
+          "title": "Перед началом",
+          "blockId": "step-2"
+        },
+        {
+          "id": "toc-3",
+          "kind": "block",
+          "title": "Заполните параметры",
+          "blockId": "step-3"
+        },
+        {
+          "id": "toc-4",
+          "kind": "block",
+          "title": "Этап 1. Подготовьте DNS origin",
+          "blockId": "step-4"
+        },
+        {
+          "id": "toc-5",
+          "kind": "block",
+          "title": "Этап 2. Настройте inbound в Remnawave",
+          "blockId": "step-5"
+        },
+        {
+          "id": "toc-6",
+          "kind": "block",
+          "title": "Этап 3. Создайте Node",
+          "blockId": "step-6"
+        },
+        {
+          "id": "toc-7",
+          "kind": "block",
+          "title": "Этап 4. Установите nginx и выпустите origin-сертификат",
+          "blockId": "step-7"
+        },
+        {
+          "id": "toc-8",
+          "kind": "block",
+          "title": "Этап 5. Настройте nginx как TLS origin",
+          "blockId": "step-8"
+        },
+        {
+          "id": "toc-9",
+          "kind": "block",
+          "title": "Этап 6. Выпустите сертификат для CDN-домена в Yandex Certificate Manager",
+          "blockId": "step-9"
+        },
+        {
+          "id": "toc-10",
+          "kind": "block",
+          "title": "Этап 7. Создайте ресурс Yandex Cloud CDN",
+          "blockId": "step-10"
+        },
+        {
+          "id": "toc-11",
+          "kind": "block",
+          "title": "Этап 8. Направьте CDN-домен на Yandex",
+          "blockId": "step-11"
+        },
+        {
+          "id": "toc-12",
+          "kind": "block",
+          "title": "Этап 9. Проверьте всю цепочку",
+          "blockId": "step-12"
+        },
+        {
+          "id": "toc-13",
+          "kind": "block",
+          "title": "Диагностика",
+          "blockId": "step-13"
+        },
+        {
+          "id": "toc-14",
+          "kind": "block",
+          "title": "Безопасность и обслуживание",
+          "blockId": "step-14"
+        },
+        {
+          "id": "toc-15",
+          "kind": "block",
+          "title": "Официальные источники",
+          "blockId": "step-15"
+        }
+      ]
+    },
+    "status": "published",
+    "updated": false,
+    "blocks": [
+      {
+        "id": "user-data-yandex-cdn",
+        "type": "data",
+        "title": "Твои данные",
+        "fields": [
+          {
+            "key": "SERVER_IP",
+            "label": "IPv4 сервера",
+            "placeholder": "203.0.113.10",
+            "help": "Публичный IPv4 VPS, на который указывает origin."
+          },
+          {
+            "key": "ORIGIN_DOMAIN",
+            "label": "Origin-домен",
+            "placeholder": "node.example.net",
+            "help": "A-запись, origin TLS и Host/SNI между CDN и VPS."
+          },
+          {
+            "key": "CDN_DOMAIN",
+            "label": "CDN-домен",
+            "placeholder": "cdn.example.net",
+            "help": "Имя, которое указывают в клиенте и DNS CNAME."
+          },
+          {
+            "key": "XHTTP_PORT",
+            "label": "Локальный XHTTP-порт",
+            "placeholder": "4443",
+            "help": "Числовой порт inbound на 127.0.0.1."
+          },
+          {
+            "key": "NODE_API_PORT",
+            "label": "Node API port",
+            "placeholder": "2222",
+            "help": "Порт связи Panel с Node; ограничьте доступ адресом панели."
+          },
+          {
+            "key": "SSH_PORT",
+            "label": "SSH-порт",
+            "placeholder": "22",
+            "help": "Порт SSH для подключения к VPS."
+          }
+        ]
+      },
+      {
+        "id": "step-1",
+        "type": "step",
+        "title": "Что получится",
+        "number": "01",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "2f482b5f-338a-4d4a-a9bb-bd8e170a3eed",
+            "type": "text",
+            "text": "Клиент подключается к CDN-домену по HTTPS. Yandex Cloud CDN принимает соединение и обращается к origin-домену на VPS; nginx завершает TLS и передаёт XHTTP-трафик локальному VLESS inbound Xray. Remnawave Node управляет Xray на том же сервере."
+          },
+          {
+            "id": "1dc8a5fb-0e02-4531-a550-9d63cbdbfc59",
+            "type": "text",
+            "text": "**Схема:** Клиент → CDN-домен → Yandex Cloud CDN → origin-домен:443 → nginx → 127.0.0.1:{{XHTTP_PORT}} → Xray"
+          },
+          {
+            "id": "791038be-ca9e-4b76-8d53-8cab0e4853fd",
+            "type": "text",
+            "text": "CDN-домен и origin-домен — разные имена. Origin нужен Яндексу для соединения с VPS и для TLS на origin. CDN-домен видит пользователь."
+          }
+        ]
+      },
+      {
+        "id": "step-2",
+        "type": "step",
+        "title": "Перед началом",
+        "number": "02",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "092a5327-8a9a-430b-b9cc-a6e69813c547",
+            "type": "text",
+            "text": "• VPS с Ubuntu или Debian, доступом root по SSH и публичным IPv4."
+          },
+          {
+            "id": "0921a293-7871-45cb-afd2-c599ff7279dd",
+            "type": "text",
+            "text": "• Установленная Remnawave Panel и доступ к разделам Nodes, Config Profiles, Hosts, Users."
+          },
+          {
+            "id": "e8c1027c-89d4-43cd-a9a2-6376fef107bb",
+            "type": "text",
+            "text": "• Два домена или поддомена, которыми вы управляете: `{{ORIGIN_DOMAIN}}` для origin и `{{CDN_DOMAIN}}` для CDN."
+          },
+          {
+            "id": "1bcb4f54-071b-4267-9cd1-e37abf649915",
+            "type": "text",
+            "text": "• Доступ к DNS-зоне обоих имён."
+          },
+          {
+            "id": "61c56e5c-e2b2-4f86-a360-069a7b4242d9",
+            "type": "text",
+            "text": "• Аккаунт Yandex Cloud с подключённым биллингом и правом создавать Certificate Manager сертификат и CDN-ресурс в одном каталоге."
+          },
+          {
+            "id": "250055f5-4907-42a4-9c0f-c1a7391939dc",
+            "type": "text",
+            "text": "• Открытые входящие TCP-порты SSH, 80 и 443. Порт Node API (например, {{NODE_API_PORT}}) должен быть доступен панели; ограничьте его адресом панели, если это поддерживает ваша схема firewall."
+          },
+          {
+            "id": "da94e979-5f87-4475-8f84-6ea0f57ce2bc",
+            "type": "text",
+            "text": "Не открывайте XHTTP-порт в интернет: inbound будет слушать только `127.0.0.1`."
+          }
+        ]
+      },
+      {
+        "id": "step-3",
+        "type": "step",
+        "title": "Заполните параметры",
+        "number": "03",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "b86fe242-69f5-420b-bec4-4f7f76b586b2",
+            "type": "table",
+            "headers": [
+              "Переменная",
+              "Пример",
+              "Где используется"
+            ],
+            "rows": [
+              [
+                "`SERVER_IP`",
+                "`{{SERVER_IP}}`",
+                "A-запись origin и адрес Node"
+              ],
+              [
+                "`ORIGIN_DOMAIN`",
+                "`{{ORIGIN_DOMAIN}}`",
+                "A-запись, сертификат Let's Encrypt и TLS/SNI между CDN и origin"
+              ],
+              [
+                "`CDN_DOMAIN`",
+                "`{{CDN_DOMAIN}}`",
+                "сертификат CDN, CNAME и адрес подключения клиента"
+              ],
+              [
+                "`XHTTP_PORT`",
+                "`{{XHTTP_PORT}}`",
+                "локальный Xray inbound и upstream nginx"
+              ],
+              [
+                "`NODE_API_PORT`",
+                "`{{NODE_API_PORT}}`",
+                "связь Remnawave Panel с Node"
+              ],
+              [
+                "`SSH_PORT`",
+                "`{{SSH_PORT}}`",
+                "SSH-доступ к VPS"
+              ]
+            ]
+          },
+          {
+            "id": "00906a18-9c37-4400-96f1-93a7d0012fff",
+            "type": "text",
+            "text": "Подставляйте значения из своей панели и DNS. Не публикуйте Node secret, URL подписки или приватный ключ."
+          }
+        ]
+      },
+      {
+        "id": "step-4",
+        "type": "step",
+        "title": "Этап 1. Подготовьте DNS origin",
+        "number": "04",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "b39157f3-2141-434f-ae3d-c8ef73a49657",
+            "type": "text",
+            "text": "Создайте запись `A` для origin-домена на IPv4 сервера:"
+          },
+          {
+            "id": "5554c8b8-8006-4586-ad5d-b86ac0646f72",
+            "type": "code",
+            "code": "{{ORIGIN_DOMAIN}}.  A  {{SERVER_IP}}",
+            "language": "DNS"
+          },
+          {
+            "id": "68eb8b96-5f76-4a22-aaa6-fdb295b74d38",
+            "type": "text",
+            "text": "Проверьте, что DNS уже возвращает нужный адрес:"
+          },
+          {
+            "id": "ad45335e-a68f-43fc-943a-c6593721fb41",
+            "type": "code",
+            "code": "dig +short A {{ORIGIN_DOMAIN}}",
+            "language": "BASH"
+          },
+          {
+            "id": "23e2b408-d17d-46da-a8bf-b85a0b7b5ceb",
+            "type": "text",
+            "text": "Продолжайте, когда в ответе есть IP VPS. Удалите неверные или устаревшие A/AAAA-записи. Yandex CDN подключается к origin по IPv4; наличие IPv6 в DNS может направить часть клиентов или проверок не туда."
+          }
+        ]
+      },
+      {
+        "id": "step-5",
+        "type": "step",
+        "title": "Этап 2. Настройте inbound в Remnawave",
+        "number": "05",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "6c4698c7-b3e6-40d0-831e-26b073c47a26",
+            "type": "text",
+            "text": "В `Config Profiles` создайте профиль или откройте существующий. Добавьте inbound со следующими параметрами:"
+          },
+          {
+            "id": "72a14b5c-1dac-41c3-9d34-c7066a41535f",
+            "type": "text",
+            "text": "• Protocol: VLESS."
+          },
+          {
+            "id": "56f8fc5d-3f5a-4930-86e9-62e01e3439aa",
+            "type": "text",
+            "text": "• Transport: XHTTP."
+          },
+          {
+            "id": "afbe8c79-6b15-4369-bd52-8112098e1aec",
+            "type": "text",
+            "text": "• Listen: `127.0.0.1`."
+          },
+          {
+            "id": "8a429bef-2897-485e-a84d-c698f763db07",
+            "type": "text",
+            "text": "• Port: выбранный `XHTTP_PORT`, например `{{XHTTP_PORT}}`."
+          },
+          {
+            "id": "d39bd64a-3afd-485d-b4d4-67ceceb88fcf",
+            "type": "text",
+            "text": "• Security: `none` на inbound: внешний TLS завершает nginx."
+          },
+          {
+            "id": "203c6b0f-30b3-431c-8256-c263254ea00f",
+            "type": "text",
+            "text": "• XHTTP mode: `packet-up`."
+          },
+          {
+            "id": "883415dd-8588-4a6b-9d83-4356fd6dd87c",
+            "type": "text",
+            "text": "• Path: `/`, если вы не выбрали отдельный путь и одинаково указали его во всех компонентах."
+          },
+          {
+            "id": "6d313ab0-aace-44c5-936a-28d9b6ad5d84",
+            "type": "text",
+            "text": "Поля XHTTP меняются между версиями Xray. Дополнительные настройки (`uplinkHTTPMethod`, размещение заголовка, padding и лимиты) берите из профиля, который соответствует версии Xray в вашей Panel/Node. Не копируйте JSON из старого скриншота без проверки версии. Для этого сценария запросы CDN должны проходить с методами GET и HEAD; настройки с телом GET несовместимы с рядом CDN."
+          },
+          {
+            "id": "d1e577b3-ec26-4e0d-b62f-dc73bbabb639",
+            "type": "text",
+            "text": "Сохраните профиль и примените его к Node. Убедитесь, что процесс слушает только loopback:"
+          },
+          {
+            "id": "d2ac388d-a88e-4179-bfed-01f886f401ab",
+            "type": "code",
+            "code": "sudo ss -lntp | grep ':{{XHTTP_PORT}}'",
+            "language": "BASH"
+          },
+          {
+            "id": "672d757f-d561-4a29-bd56-d0deeb848fd5",
+            "type": "text",
+            "text": "Ожидаемый адрес — `127.0.0.1:{{XHTTP_PORT}}`, а не `0.0.0.0:{{XHTTP_PORT}}`."
+          },
+          {
+            "id": "2e4161d3-7d04-4bad-be6e-1dac6a1a4b61",
+            "type": "text",
+            "text": "**Базовый Config Profile**"
+          },
+          {
+            "id": "edb89e25-0480-482d-a90a-236e2a6b8fbc",
+            "type": "text",
+            "text": "Ниже базовый JSON профиля для этого сценария. Вставьте его в редактор Config Profile, сверьте параметры с версией Xray, которую использует ваша Remnawave Panel/Node, и сохраните профиль. Значения порта, пути, padding-заголовков и XHTTP-полей должны совпадать с конфигурацией nginx и CDN."
+          },
+          {
+            "id": "d3372967-3ddc-4564-aec1-057bc159bb7a",
+            "type": "code",
+            "code": "{\n  \"log\": {\n    \"loglevel\": \"warning\"\n  },\n  \"dns\": {\n    \"queryStrategy\": \"UseIPv4\"\n  },\n  \"inbounds\": [\n    {\n      \"tag\": \"VLESS_XHTTP_CDN\",\n      \"listen\": \"127.0.0.1\",\n      \"port\": {{XHTTP_PORT}},\n      \"protocol\": \"vless\",\n      \"settings\": {\n        \"clients\": [],\n        \"decryption\": \"none\"\n      },\n      \"sniffing\": {\n        \"enabled\": true,\n        \"destOverride\": [\n          \"http\",\n          \"tls\",\n          \"quic\"\n        ]\n      },\n      \"streamSettings\": {\n        \"network\": \"xhttp\",\n        \"security\": \"none\",\n        \"xhttpSettings\": {\n          \"mode\": \"packet-up\",\n          \"path\": \"/\",\n          \"extra\": {\n            \"mode\": \"packet-up\",\n            \"path\": \"/\",\n            \"uplinkHTTPMethod\": \"GET\",\n            \"xPaddingHeader\": \"X-Cache\",\n            \"xPaddingKey\": \"_dc\",\n            \"xPaddingMethod\": \"tokenish\",\n            \"xPaddingObfsMode\": true,\n            \"xPaddingPlacement\": \"queryInHeader\",\n            \"uplinkDataPlacement\": \"header\",\n            \"uplinkDataKey\": \"X-Request-Trace\",\n            \"scMaxEachPostBytes\": 24000,\n            \"scMinPostsIntervalMs\": 10,\n            \"serverMaxHeaderBytes\": 65536\n          }\n        }\n      }\n    }\n  ],\n  \"outbounds\": [\n    {\n      \"tag\": \"DIRECT\",\n      \"protocol\": \"freedom\",\n      \"settings\": {\n        \"domainStrategy\": \"UseIPv4\"\n      }\n    },\n    {\n      \"tag\": \"BLOCK\",\n      \"protocol\": \"blackhole\"\n    }\n  ],\n  \"routing\": {\n    \"rules\": [\n      {\n        \"type\": \"field\",\n        \"protocol\": [\n          \"bittorrent\"\n        ],\n        \"outboundTag\": \"BLOCK\"\n      }\n    ]\n  }\n}",
+            "language": "JSON"
+          },
+          {
+            "id": "3fde4fc6-cc41-4185-8f7f-517dc5860056",
+            "type": "text",
+            "text": "`clients` оставлен пустым: Remnawave формирует клиентов при применении профиля. `listen` ограничен loopback, поэтому публичный вход в этот inbound идёт через nginx. Если импортируемый редактор панели ожидает не весь Xray JSON, а только объект Config Profile или набор отдельных полей, перенесите соответствующие значения в формат редактора, не создавая второй inbound."
+          }
+        ]
+      },
+      {
+        "id": "step-6",
+        "type": "step",
+        "title": "Этап 3. Создайте Node",
+        "number": "06",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "1bb3019c-918e-4354-b724-62fcd37b22ac",
+            "type": "text",
+            "text": "В Remnawave Panel откройте `Nodes → Management → Create new node`."
+          },
+          {
+            "id": "845e6423-fbb3-4e69-8f2b-d548334e1e91",
+            "type": "text",
+            "text": "• Укажите страну и внутреннее имя Node."
+          },
+          {
+            "id": "4faed79d-dad1-4a18-b160-623b383645db",
+            "type": "text",
+            "text": "• В `Address` укажите IP сервера или origin-домен; `Port` — порт Node API (пример `{{NODE_API_PORT}}`), не XHTTP-порт."
+          },
+          {
+            "id": "7256ebfd-9529-4465-ac75-5808463ba1cf",
+            "type": "text",
+            "text": "• Выберите созданный Config Profile и примените inbound."
+          },
+          {
+            "id": "e4506d99-9a23-4d8a-8b8f-469b0e60d829",
+            "type": "text",
+            "text": "• Скопируйте compose-файл и secret из панели в защищённое место. Не вставляйте secret в публичный чат или документацию."
+          },
+          {
+            "id": "85da6050-a816-49c6-8896-3e5b9848f1a2",
+            "type": "text",
+            "text": "• Запустите Node на VPS по официальной инструкции Remnawave и проверьте статус `Connected`."
+          },
+          {
+            "id": "bce1c256-21e4-4128-953a-fea60f7a91e6",
+            "type": "text",
+            "text": "Убедитесь, что firewall и облачная сетевая группа разрешают входящий Node API порт от Panel. Если можно задать источник, используйте IP Panel. Не открывайте порт без ограничения, если ваша архитектура этого не требует."
+          }
+        ]
+      },
+      {
+        "id": "step-7",
+        "type": "step",
+        "title": "Этап 4. Установите nginx и выпустите origin-сертификат",
+        "number": "07",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "f03626f0-0124-4b5b-a0cd-1c93788867d0",
+            "type": "text",
+            "text": "Origin должен иметь валидный сертификат для `ORIGIN_DOMAIN`. DNS-01 не обязателен: для простого VPS подойдёт HTTP-01 через webroot при доступном извне порте 80. Сначала настройте временный HTTP virtual host с правильным `server_name` и webroot, затем выполните Certbot. Не запускайте выпуск до того, как DNS указывает на сервер и порт 80 доступен."
+          },
+          {
+            "id": "6b99b9be-f5c5-4b47-b2b5-567a8746eafc",
+            "type": "text",
+            "text": "Пример получения сертификата после подготовки webroot и HTTP-конфига:"
+          },
+          {
+            "id": "4c1e37e3-52d5-4a57-ad99-4c72e089bf72",
+            "type": "code",
+            "code": "sudo certbot certonly --webroot -w /var/www/letsencrypt -d {{ORIGIN_DOMAIN}}",
+            "language": "BASH"
+          },
+          {
+            "id": "813524d3-5035-4d5b-ac1a-c893275a3958",
+            "type": "text",
+            "text": "Убедитесь, что Certbot завершился успешно, а сертификат и ключ находятся в `/etc/letsencrypt/live/{{ORIGIN_DOMAIN}}/`. Настройте автоматическое продление и проверьте его штатной командой Certbot."
+          }
+        ]
+      },
+      {
+        "id": "step-8",
+        "type": "step",
+        "title": "Этап 5. Настройте nginx как TLS origin",
+        "number": "08",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "95575b1a-81f1-4609-99f4-0ae76ed8cd3c",
+            "type": "text",
+            "text": "Ниже схема конфига. Перед применением сохраните текущий конфиг и адаптируйте его к существующим сайтам. Не затирайте общий `default`, если там размещены другие сервисы."
+          },
+          {
+            "id": "51987ae9-06cb-4c11-9a24-6e45c4fff156",
+            "type": "code",
+            "code": "server {\n    listen 80;\n    server_name {{ORIGIN_DOMAIN}};\n    location ^~ /.well-known/acme-challenge/ { root /var/www/letsencrypt; }\n    location / { return 301 https://$host$request_uri; }\n}\n\nserver {\n    listen 443 ssl;\n    server_name {{ORIGIN_DOMAIN}};\n\n    ssl_certificate     /etc/letsencrypt/live/{{ORIGIN_DOMAIN}}/fullchain.pem;\n    ssl_certificate_key /etc/letsencrypt/live/{{ORIGIN_DOMAIN}}/privkey.pem;\n\n    location / {\n        proxy_pass http://127.0.0.1:{{XHTTP_PORT}};\n        proxy_http_version 1.1;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_buffering off;\n        proxy_request_buffering off;\n        proxy_read_timeout 3600s;\n        proxy_send_timeout 3600s;\n    }\n}",
+            "language": "NGINX"
+          },
+          {
+            "id": "d280b88e-6b9c-437f-beb0-849f305cd44c",
+            "type": "text",
+            "text": "Убедитесь, что конфиг передаёт XHTTP-запросы без буферизации и не меняет путь. Проверьте и примените:"
+          },
+          {
+            "id": "8c77615b-ecf5-474e-b936-244c93c76257",
+            "type": "code",
+            "code": "sudo nginx -t\nsudo systemctl reload nginx\nsudo ss -lntp | grep ':443'",
+            "language": "BASH"
+          },
+          {
+            "id": "b25878ae-30c6-4e60-8a86-03ee049a9935",
+            "type": "text",
+            "text": "Локальная проверка TLS origin:"
+          },
+          {
+            "id": "74a1b0a1-c524-4666-97b6-e7f87a5beb09",
+            "type": "code",
+            "code": "curl -I --max-time 10 https://{{ORIGIN_DOMAIN}}/",
+            "language": "BASH"
+          },
+          {
+            "id": "c2010a24-197b-49a1-b4cc-e42b14799cb9",
+            "type": "text",
+            "text": "HTTP 400 на корневом URL может быть ожидаемым ответом XHTTP inbound. Важно, что TLS проходит проверку, запрос доходит до nginx и upstream. Это ещё не подтверждает работу клиента через CDN."
+          }
+        ]
+      },
+      {
+        "id": "step-9",
+        "type": "step",
+        "title": "Этап 6. Выпустите сертификат для CDN-домена в Yandex Certificate Manager",
+        "number": "09",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "f061d3f6-bb35-4ddd-80eb-ac47e72eb9fb",
+            "type": "text",
+            "text": "Создайте сертификат Let's Encrypt с DNS-проверкой для `{{CDN_DOMAIN}}`. В Certificate Manager откройте созданный сертификат и скопируйте предложенную CNAME-запись `_acme-challenge` в DNS-провайдер."
+          },
+          {
+            "id": "85e66680-ba2c-4b90-a4e3-00c8a18d5ddb",
+            "type": "text",
+            "text": "Пример формы записи:"
+          },
+          {
+            "id": "57f7668e-9352-45ba-ba63-4ce6519887a6",
+            "type": "code",
+            "code": "_acme-challenge.{{CDN_DOMAIN}}. CNAME <значение-из-Certificate-Manager>.",
+            "language": "DNS"
+          },
+          {
+            "id": "b84f754f-ca03-4edf-be57-57b3ec474ed0",
+            "type": "text",
+            "text": "Используйте точные имя и значение из консоли. Для этого имени оставьте только выданную CNAME-запись: не добавляйте рядом TXT. Не удаляйте CNAME после выпуска: он нужен для автоматического продления. Дождитесь статуса `Issued` (или подтверждённого действующего статуса сертификата) прежде чем создавать CDN-ресурс. Проверка DNS может занять время."
+          }
+        ]
+      },
+      {
+        "id": "step-10",
+        "type": "step",
+        "title": "Этап 7. Создайте ресурс Yandex Cloud CDN",
+        "number": "10",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "64a9d399-6e7f-42f4-ac01-60fad74dce46",
+            "type": "text",
+            "text": "Создайте CDN-ресурс и заполните основные настройки:"
+          },
+          {
+            "id": "06c690ac-88cc-4547-a13b-88b13abfc84f",
+            "type": "table",
+            "headers": [
+              "Поле",
+              "Значение"
+            ],
+            "rows": [
+              [
+                "CDN-домен",
+                "`{{CDN_DOMAIN}}`"
+              ],
+              [
+                "Origin/source",
+                "`{{ORIGIN_DOMAIN}}`"
+              ],
+              [
+                "Протокол соединения к origin",
+                "HTTPS"
+              ],
+              [
+                "Host header к origin",
+                "`{{ORIGIN_DOMAIN}}`"
+              ],
+              [
+                "SNI к origin",
+                "`{{ORIGIN_DOMAIN}}`"
+              ],
+              [
+                "Сертификат для клиентского CDN-домена",
+                "сертификат Certificate Manager для `{{CDN_DOMAIN}}`"
+              ],
+              [
+                "Перенаправление HTTP → HTTPS для клиентов",
+                "включить, если это отдельная настройка клиентского доступа"
+              ],
+              [
+                "Кэширование",
+                "выключить для туннельного XHTTP-трафика"
+              ],
+              [
+                "CORS и дополнительные HTTP-заголовки",
+                "не добавлять без отдельной необходимости"
+              ],
+              [
+                "URL rewrite / «Перенаправление запросов»",
+                "выключить: это переписывание URI, а не HTTP→HTTPS"
+              ],
+              [
+                "Следовать редиректам origin",
+                "выключить; origin настроен сразу по HTTPS"
+              ]
+            ]
+          },
+          {
+            "id": "95e614f7-cbdd-4212-b783-86106cd1be91",
+            "type": "text",
+            "text": "Сертификат CDN и CDN-ресурс должны находиться в одном каталоге Yandex Cloud. Имя CDN-домена, Host header, SNI и origin — разные поля с разным смыслом; не подставляйте CDN-домен в Host/SNI origin, если origin настроен на `{{ORIGIN_DOMAIN}}`."
+          },
+          {
+            "id": "e140b557-6045-4149-8355-c54ca26ddcf8",
+            "type": "text",
+            "text": "После создания дождитесь статуса ресурса `Active`. Изменения конфигурации могут применяться не мгновенно."
+          }
+        ]
+      },
+      {
+        "id": "step-11",
+        "type": "step",
+        "title": "Этап 8. Направьте CDN-домен на Yandex",
+        "number": "11",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "ea516d37-b4bd-4e17-8962-2be91df35849",
+            "type": "text",
+            "text": "В карточке CDN-ресурса найдите выданное доменное имя вида `xxxxx.topology.gslb.yccdn.ru`. Создайте DNS-запись:"
+          },
+          {
+            "id": "cead8f1a-7fa3-4b42-b9b5-0e3bb638a0ed",
+            "type": "code",
+            "code": "{{CDN_DOMAIN}}. CNAME xxxxx.topology.gslb.yccdn.ru.",
+            "language": "DNS"
+          },
+          {
+            "id": "7e645110-dfb7-43ee-b13f-0b3b387da97c",
+            "type": "text",
+            "text": "Если DNS обслуживает Cloudflare, переключите именно эту CNAME-запись в режим DNS only (без проксирования). Проверьте:"
+          },
+          {
+            "id": "5794aea5-8463-4173-bfe3-ab0a5052fa68",
+            "type": "code",
+            "code": "dig +short CNAME {{CDN_DOMAIN}}",
+            "language": "BASH"
+          },
+          {
+            "id": "8f0f83a6-a665-45e7-b20b-bb25e59a413f",
+            "type": "text",
+            "text": "В ответе должен появиться адрес `topology.gslb.yccdn.ru`. Если DNS ещё не обновился, дождитесь TTL и повторите проверку."
+          }
+        ]
+      },
+      {
+        "id": "step-12",
+        "type": "step",
+        "title": "Этап 9. Проверьте всю цепочку",
+        "number": "12",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "7685bea0-bf05-4f8a-9f35-cfd1fa912e81",
+            "type": "text",
+            "text": "**DNS и TLS**"
+          },
+          {
+            "id": "96ca8a60-6c65-4b24-ac24-5710e241bca2",
+            "type": "code",
+            "code": "dig +short A {{ORIGIN_DOMAIN}}\ndig +short CNAME {{CDN_DOMAIN}}\ncurl -Iv --max-time 15 https://{{CDN_DOMAIN}}/",
+            "language": "BASH"
+          },
+          {
+            "id": "e87b63f0-4c54-4f21-baef-fc995740c5bd",
+            "type": "text",
+            "text": "Убедитесь, что клиентский сертификат выдан для `{{CDN_DOMAIN}}`, цепочка TLS валидна, а соединение устанавливается. Ответ `HTTP/2 400` на `/` сам по себе не означает неисправность: XHTTP endpoint не обязан отдавать веб-страницу."
+          },
+          {
+            "id": "886d1ebf-b1ba-4407-85c4-7f352fb8bfb3",
+            "type": "text",
+            "text": "**Проверка origin**"
+          },
+          {
+            "id": "fd64434a-4455-453c-be00-227dfe8e0425",
+            "type": "code",
+            "code": "curl -Iv --max-time 15 https://{{ORIGIN_DOMAIN}}/\nsudo ss -lntp | grep ':443'\nsudo ss -lntp | grep ':{{XHTTP_PORT}}'",
+            "language": "BASH"
+          },
+          {
+            "id": "62365953-dcaa-4078-9ee2-4268cd29cd6b",
+            "type": "text",
+            "text": "nginx слушает публичный 443, Xray — только `127.0.0.1:{{XHTTP_PORT}}`. При проблеме с сертификатом проверьте DNS origin, имя сертификата, срок действия и `server_name` nginx."
+          },
+          {
+            "id": "a0b56adf-ed75-41b3-a789-286bd83727df",
+            "type": "text",
+            "text": "**Проверка клиента**"
+          },
+          {
+            "id": "a792847e-c41b-4589-886f-50b727023a1f",
+            "type": "text",
+            "text": "Подключите тестового пользователя из Remnawave через созданный Host/CDN-домен, используя выданную ссылку подписки в совместимом клиенте. Откройте ресурс или выполните реальное подключение, затем проверьте статистику пользователя и Node. Только успешный клиентский трафик подтверждает весь путь через CDN; `curl -I` проверяет лишь часть цепочки."
+          }
+        ]
+      },
+      {
+        "id": "step-13",
+        "type": "step",
+        "title": "Диагностика",
+        "number": "13",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "6c303869-bca8-425d-8442-40e9ce306c62",
+            "type": "table",
+            "headers": [
+              "Симптом",
+              "Что проверить"
+            ],
+            "rows": [
+              [
+                "origin-домен не возвращает IP VPS",
+                "A-запись, лишние AAAA/A и DNS-кеш"
+              ],
+              [
+                "Certificate Manager остаётся в `Validating`",
+                "точное имя/значение `_acme-challenge` CNAME, отсутствие TXT на этом имени, DNS TTL"
+              ],
+              [
+                "TLS к CDN не проходит",
+                "статус сертификата, CDN-домен, привязку сертификата к ресурсу, DNS CNAME"
+              ],
+              [
+                "`502` или `504`",
+                "nginx upstream, статус Node/Xray, `127.0.0.1:XHTTP_PORT`, логи nginx и контейнера"
+              ],
+              [
+                "nginx отдаёт неверный сертификат",
+                "`server_name`, пути сертификата, SNI и выбранный virtual host"
+              ],
+              [
+                "Node `offline`",
+                "доступность Node API порта от Panel, firewall/ACL, адрес и порт в карточке Node"
+              ],
+              [
+                "CDN вернул старый/неожиданный ответ",
+                "отключено ли кэширование и URL rewrite; дождитесь применения CDN-конфигурации"
+              ],
+              [
+                "`curl` на `/` получает 400",
+                "это может быть нормальным для XHTTP; проверьте TLS, nginx и реальный клиентский трафик"
+              ]
+            ]
+          },
+          {
+            "id": "f5cf4dee-2dd1-4ef1-a954-60f7333201d4",
+            "type": "text",
+            "text": "Соберите журналы без секретов: `journalctl -u nginx`, `docker logs remnanode` (имя контейнера может отличаться), и статус Node в панели. Перед передачей логов удалите URL подписок, токены, приватные ключи и адреса, которые не хотите раскрывать."
+          }
+        ]
+      },
+      {
+        "id": "step-14",
+        "type": "step",
+        "title": "Безопасность и обслуживание",
+        "number": "14",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "678bf01c-35a2-4944-b0ef-1eb0fb2c4c21",
+            "type": "text",
+            "text": "• Оставьте XHTTP inbound на loopback; наружу публикуйте nginx 443."
+          },
+          {
+            "id": "cbf9c919-0c36-4a58-8503-0f57e7d6f6f7",
+            "type": "text",
+            "text": "• Ограничьте Node API порт адресом Panel, когда это возможно."
+          },
+          {
+            "id": "b172a76b-86d4-472f-943d-2c6fe06caa9e",
+            "type": "text",
+            "text": "• Храните Node secret и приватные ключи в файлах с правами `600`; не передавайте их через командную строку и историю shell."
+          },
+          {
+            "id": "4d3a516a-0cc9-4369-9655-25ce202c1d83",
+            "type": "text",
+            "text": "• Не включайте CDN-кэш для туннельного трафика."
+          },
+          {
+            "id": "d1fb565a-24f8-4e5c-baa8-de1698cdd5db",
+            "type": "text",
+            "text": "• Сохраните CNAME `_acme-challenge`, чтобы сертификат Yandex Certificate Manager мог продлеваться."
+          },
+          {
+            "id": "54b09fe2-c668-4ca7-9803-0e1d9c29e505",
+            "type": "text",
+            "text": "• Следите за сроком origin-сертификата Let's Encrypt и исправностью Certbot renewal hook."
+          },
+          {
+            "id": "0173819e-3bd0-4f45-bd78-c224d577ec17",
+            "type": "text",
+            "text": "• После обновления Remnawave/Xray проверяйте совместимость XHTTP-параметров и профиль Node."
+          },
+          {
+            "id": "f0b4c69b-7e39-4185-86e8-04f461544288",
+            "type": "text",
+            "text": "• Изменения CDN/DNS применяются с задержкой; после правки перепроверьте DNS, TLS и подключение клиента."
+          }
+        ]
+      },
+      {
+        "id": "step-15",
+        "type": "step",
+        "title": "Официальные источники",
+        "number": "15",
+        "showTitle": true,
+        "showNumber": true,
+        "items": [
+          {
+            "id": "637edc96-1a38-4d95-ac60-2a685cf885f7",
+            "type": "text",
+            "text": "• [Yandex Certificate Manager: проверка владения доменом](https://yandex.cloud/en/docs/certificate-manager/concepts/challenges)"
+          },
+          {
+            "id": "739645da-290e-4b2f-89d5-21387f54c444",
+            "type": "text",
+            "text": "• [Yandex Certificate Manager: создать сертификат](https://yandex.cloud/en/docs/certificate-manager/operations/managed/cert-create)"
+          },
+          {
+            "id": "a8bdbcdb-2af5-4146-87bf-2739a0945398",
+            "type": "text",
+            "text": "• [Yandex CDN: соединение с origin](https://yandex.cloud/en/docs/cdn/concepts/servers-to-origins)"
+          },
+          {
+            "id": "ac1f2e3b-24f9-41d7-bc68-c630a4f3c5c8",
+            "type": "text",
+            "text": "• [Yandex CDN: Host header origin](https://yandex.cloud/en/docs/cdn/concepts/servers-to-origins-host)"
+          },
+          {
+            "id": "04794e13-6500-420d-8bda-1ccae001dedd",
+            "type": "text",
+            "text": "• [Yandex CDN: создать ресурс](https://yandex.cloud/en/docs/cdn/operations/resources/create-resource)"
+          },
+          {
+            "id": "0b706911-0f94-46b5-ac86-0dfbf85a9da2",
+            "type": "text",
+            "text": "• [Yandex CDN: кэширование](https://yandex.cloud/en/docs/cdn/concepts/caching)"
+          },
+          {
+            "id": "2b6a5a12-ee0e-4244-afc3-b4153dc974e8",
+            "type": "text",
+            "text": "• [Yandex CDN: переписывание URI](https://yandex.cloud/en/docs/cdn/operations/resources/setup-http-rewrite)"
+          },
+          {
+            "id": "23610318-f6f2-44e7-bdf4-def0ac033b99",
+            "type": "text",
+            "text": "• [Remnawave: установка Panel](https://docs.rw/install/remnawave-panel/)"
+          },
+          {
+            "id": "69e33db4-91ea-4163-8e9f-a0b4ca2bc8f6",
+            "type": "text",
+            "text": "• [Remnawave: установка Node](https://docs.rw/install/remnawave-node/)"
+          },
+          {
+            "id": "322621b3-1346-4dda-bb87-27583534b0e0",
+            "type": "text",
+            "text": "• [Xray-core: настройки XHTTP транспорта](https://github.com/XTLS/Xray-core/blob/main/infra/conf/transport_method.go)"
+          }
+        ]
+      }
+    ],
+    "createdAt": "2026-10-10T01:19:52.557Z",
+    "updatedAt": "2026-10-10T01:20:56.451Z"
+  }
+]
