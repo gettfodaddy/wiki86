@@ -129,6 +129,49 @@ function appendTemplateText(parent, source) {
   for (const match of value.matchAll(pattern)) { if (match.index > cursor) parent.append(document.createTextNode(value.slice(cursor, match.index))); const resolved = resolveVariable(match[1]); const span = make('span', `template-value ${resolved.filled ? 'is-filled' : 'is-example'}`, resolved.value); span.dataset.variableKey = match[1]; parent.append(span); cursor = match.index + match[0].length; }
   if (cursor < value.length) parent.append(document.createTextNode(value.slice(cursor)));
 }
+function appendCodeText(parent, source, language = 'TEXT') {
+  const value = String(source || '');
+  const lang = String(language || 'TEXT').toUpperCase();
+  const variablePattern = /\{\{\s*([A-Za-z][A-Za-z0-9_]*)\s*\}\}/g;
+  const jsonPattern = /"(?:\\.|[^"\\])*"(?=\s*:)|"(?:\\.|[^"\\])*"|\b(?:true|false|null)\b|-?\b\d+(?:\.\d+)?\b|[{}\[\],:]/g;
+  let cursor = 0;
+  const appendSyntax = (part) => {
+    if (lang === 'JSON' || lang === 'JSONC') {
+      let syntaxCursor = 0;
+      for (const match of part.matchAll(jsonPattern)) {
+        if (match.index > syntaxCursor) parent.append(document.createTextNode(part.slice(syntaxCursor, match.index)));
+        const token = match[0];
+        let kind = 'code-punctuation';
+        if (token.startsWith('"')) kind = /^\s*:/.test(part.slice(match.index + token.length)) ? 'code-key' : 'code-string';
+        else if (/^(?:true|false|null)$/.test(token)) kind = 'code-literal';
+        else if (/^-?\d/.test(token)) kind = 'code-number';
+        parent.append(make('span', kind, token));
+        syntaxCursor = match.index + token.length;
+      }
+      if (syntaxCursor < part.length) parent.append(document.createTextNode(part.slice(syntaxCursor)));
+    } else if (lang === 'BASH' || lang === 'SH' || lang === 'SHELL') {
+      let syntaxCursor = 0;
+      for (const match of part.matchAll(/(^|\s)(sudo|apt|apt-get|systemctl|docker|curl|dig|openssl|certbot|nginx|ss|grep|mkdir|nano|echo|export|cd|chmod|ufw|journalctl|watch)(?=\s|$)|(^|\s)(#[^\n]*)/gm)) {
+        const tokenStart = match.index + (match[1] || match[3] || '').length;
+        const token = match[2] || match[4] || '';
+        if (!token) continue;
+        if (tokenStart > syntaxCursor) parent.append(document.createTextNode(part.slice(syntaxCursor, tokenStart)));
+        parent.append(make('span', match[4] ? 'code-comment' : 'code-command', token));
+        syntaxCursor = tokenStart + token.length;
+      }
+      if (syntaxCursor < part.length) parent.append(document.createTextNode(part.slice(syntaxCursor)));
+    } else parent.append(document.createTextNode(part));
+  };
+  for (const match of value.matchAll(variablePattern)) {
+    if (match.index > cursor) appendSyntax(value.slice(cursor, match.index));
+    const resolved = resolveVariable(match[1]);
+    const span = make('span', `template-value ${resolved.filled ? 'is-filled' : 'is-example'}`, resolved.value);
+    span.dataset.variableKey = match[1];
+    parent.append(span);
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < value.length) appendSyntax(value.slice(cursor));
+}
 function renderRichText(node, source) {
   const value = String(source || '');
   const pattern = /\[[^\]]+\]\((?:https?:\/\/|mailto:|\/(?!\/))[^)]+\)|\*\*.+?\*\*|==.+?==|`.+?`|\*[^*\n]+\*/g;
@@ -147,9 +190,9 @@ function renderRichText(node, source) {
   if (cursor < value.length) appendTemplateText(node, value.slice(cursor));
   if (!value) node.append(document.createTextNode(''));
 }
-function templateText(tag, className, source, { rich = true } = {}) { const node = make(tag, className); node.dataset.templateSource = source || ''; node.dataset.templatePlain = String(!rich); if (rich) renderRichText(node, source); else appendTemplateText(node, source); return node; }
+function templateText(tag, className, source, { rich = true, language = 'TEXT' } = {}) { const node = make(tag, className); node.dataset.templateSource = source || ''; node.dataset.templatePlain = String(!rich); if (rich) renderRichText(node, source); else { node.dataset.codeLanguage = language; appendCodeText(node, source, language); } return node; }
 function refreshVariableTexts(root = document) {
-  root.querySelectorAll('[data-template-source]').forEach((node) => { if (node.dataset.templatePlain === 'true') { node.replaceChildren(); appendTemplateText(node, node.dataset.templateSource); } else renderRichText(node, node.dataset.templateSource); });
+  root.querySelectorAll('[data-template-source]').forEach((node) => { if (node.dataset.templatePlain === 'true') { node.replaceChildren(); appendCodeText(node, node.dataset.templateSource, node.dataset.codeLanguage); } else renderRichText(node, node.dataset.templateSource); });
 }
 function createDataForm(fields, { editor = false } = {}) {
   const details = make('details', `user-data${editor ? ' editor-data-form' : ''}`); details.open = true;
@@ -196,7 +239,7 @@ function createTabsBlock(block, { editor = false } = {}) {
     const button = make('button', `published-tab${index === activeTab ? ' active' : ''}`, tab.title || `Вариант ${index + 1}`); button.type = 'button'; button.setAttribute('role', 'tab'); button.setAttribute('aria-selected', String(index === activeTab));
     const panel = make('div', 'published-tab-panel'); panel.setAttribute('role', 'tabpanel'); panel.hidden = index !== activeTab;
     if (tab.text) panel.append(templateText('p', 'published-text', tab.text));
-    if (tab.code) { const codeBlock = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', tab.language || 'TEXT')); const copy = make('button', 'copy-code', 'Копировать'); copy.type = 'button'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(tab.code)); copy.textContent = 'Скопировано'; setTimeout(() => copy.textContent = 'Копировать', 1200); } catch { copy.textContent = 'Выдели и скопируй'; } }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', tab.code, { rich: false })); codeBlock.append(top, pre); panel.append(codeBlock); }
+    if (tab.code) { const codeBlock = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', tab.language || 'TEXT')); const copy = make('button', 'copy-code', 'Копировать'); copy.type = 'button'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(tab.code)); copy.textContent = 'Скопировано'; setTimeout(() => copy.textContent = 'Копировать', 1200); } catch { copy.textContent = 'Выдели и скопируй'; } }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', tab.code, { rich: false, language: tab.language })); codeBlock.append(top, pre); panel.append(codeBlock); }
     button.addEventListener('click', () => { block.activeTab = index; tablist.querySelectorAll('[role="tab"]').forEach((item, itemIndex) => { item.classList.toggle('active', itemIndex === index); item.setAttribute('aria-selected', String(itemIndex === index)); panels[itemIndex].hidden = itemIndex !== index; }); });
     tablist.append(button); return panel;
   });
@@ -274,7 +317,7 @@ function renderTable(block) {
 function renderStepItem(block, { editor = false } = {}) {
   let element;
   if (block.type === 'text') element = templateText(editor ? 'p' : 'p', editor ? 'published-text step-item-text' : 'published-text step-item-text', block.text || '');
-  else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', copy.title); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); } catch { copy.title = 'Не удалось скопировать'; } }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '', { rich: false })); element.append(top, pre); }
+  else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', copy.title); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); } catch { copy.title = 'Не удалось скопировать'; } }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '', { rich: false, language: block.language })); element.append(top, pre); }
   else if (block.type === 'note') { element = make('aside', `published-note note-${block.variant || 'warning'}`); const mark = make('span', 'note-mark'); mark.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-${block.variant === 'success' ? 'check' : block.variant === 'info' ? 'info' : 'alert'}"></use></svg>`; const content = make('div', 'note-content'); content.append(templateText('strong', '', block.title || 'Примечание'), templateText('p', '', block.text || '')); element.append(mark, content); }
   else if (block.type === 'image') { element = make('figure', 'published-image'); if (validImageSource(block.src)) { const img = document.createElement('img'); img.src = block.src; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); } else element.append(make('div', 'image-placeholder', 'Добавьте изображение')); if (block.alt) element.append(make('figcaption', '', block.alt)); }
   else if (block.type === 'table') element = renderTable(block);
@@ -303,7 +346,7 @@ function renderPublishedManual(manual) {
     else if (block.type === 'step') { element = make('section', `published-step${block.showNumber === false ? ' step-without-number' : ''}${block.showTitle === false ? ' step-without-title' : ''}`); if (block.showNumber !== false) element.append(make('span', 'step-number', block.number || String(index + 1).padStart(2, '0'))); element.append(make('div', 'published-step-content', '')); const body = element.lastChild; if (block.showTitle !== false) body.append(templateText('h2', '', block.title || `Шаг ${index + 1}`)); const items = Array.isArray(block.items) ? block.items : (block.text ? [{ type: 'text', text: block.text }] : []); items.forEach((item) => body.append(renderStepItem(item))); }
     else if (block.type === 'accordion') { element = createAccordionBlock(block); }
     else if (block.type === 'tabs') { element = createTabsBlock(block); }
-    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '', { rich: false })); element.append(top, pre); }
+    else if (block.type === 'code') { element = make('section', 'published-code'); const top = make('div', 'published-code-top'); top.append(make('span', '', block.language || 'TEXT')); const copy = make('button', 'copy-code', ''); copy.type = 'button'; copy.title = 'Скопировать код'; copy.setAttribute('aria-label', 'Скопировать код'); copy.innerHTML = '<svg class="icon" aria-hidden="true"><use href="#i-copy"></use></svg><span class="copy-feedback">Скопировано</span>'; copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(interpolate(block.code || '')); } catch { const range = document.createRange(); range.selectNodeContents(element.querySelector('code')); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.execCommand('copy'); selection.removeAllRanges(); } copy.classList.add('copied'); setTimeout(() => copy.classList.remove('copied'), 1200); }); top.append(copy); const pre = make('pre'); pre.append(templateText('code', '', block.code || '', { rich: false, language: block.language })); element.append(top, pre); }
     else if (block.type === 'note') { element = renderStepItem(block); }
     else if (block.type === 'table') { element = renderTable(block); }
     else if (block.type === 'image') { element = make('figure', 'published-image'); const src = validImageSource(block.src) ? block.src : ''; if (src) { const img = document.createElement('img'); img.src = src; img.alt = block.alt || ''; img.loading = 'lazy'; element.append(img); } else element.append(make('div', 'image-placeholder', 'Добавьте HTTPS-ссылку или SVG-файл из /assets/')); if (block.alt) element.append(make('figcaption', '', block.alt)); }

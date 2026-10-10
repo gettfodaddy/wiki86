@@ -20,3 +20,39 @@
 .manual-nav{gap:18px}.nav-group{display:grid;gap:0;animation:groupEnter .42s cubic-bezier(.16,1,.3,1) both}.nav-group:nth-child(2){animation-delay:.04s}.nav-group:nth-child(3){animation-delay:.08s}.nav-group:nth-child(4){animation-delay:.12s}.nav-group-sections{display:grid;gap:9px}.sidebar-label{margin:2px 6px 10px}.group-icon{display:grid;place-items:center;width:14px;height:14px;color:#8fa3c6}.group-icon .icon{width:13px;height:13px}.group-title{white-space:nowrap}.section-toggle{position:relative;overflow:hidden}.section-toggle:before{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(110deg,transparent 20%,#ffffff0a 48%,transparent 75%);transform:translateX(-120%);transition:transform .65s cubic-bezier(.2,.8,.2,1)}.section-toggle:hover:before{transform:translateX(120%)}.section-items{animation:submenuEnter .34s cubic-bezier(.16,1,.3,1) both}.manual-link{animation:linkEnter .26s cubic-bezier(.16,1,.3,1) both}.manual-link:nth-child(2){animation-delay:.025s}.manual-link:nth-child(3){animation-delay:.05s}.manual-link:nth-child(4){animation-delay:.075s}
 @keyframes groupEnter{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:translateY(0)}}@keyframes submenuEnter{from{opacity:0;transform:translateY(-8px) scaleY(.96)}to{opacity:1;transform:translateY(0) scaleY(1)}}@keyframes linkEnter{from{opacity:0;transform:translateX(-7px)}to{opacity:1;transform:translateX(0)}}
 @media(prefers-reduced-motion:reduce){.nav-group,.section-items,.manual-link,.section-toggle:before{animation:none!important;transition:none!important}}
+
+/* Refined reading typography, sticky contents and code examples. */
+.app-shell{font-family:"IBM Plex Sans","Segoe UI Variable","Segoe UI",Arial,sans-serif}
+.app-shell button,.app-shell input,.app-shell select,.app-shell textarea{font-family:inherit}
+.published-manual-layout .published-manual-toc{position:sticky!important;top:calc(var(--topbar-h,54px) + 14px)!important;align-self:start;max-height:calc(100vh - var(--topbar-h,54px) - 28px)!important;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.app-shell .published-manual-article [id^="manual-block-"]{scroll-margin-top:calc(var(--topbar-h,54px) + 18px)}
+.app-shell .published-code pre{padding:16px 18px;color:#e4edf9;font:500 13px/1.8 "JetBrains Mono","Cascadia Code",Consolas,monospace;letter-spacing:.005em;font-variant-ligatures:none;tab-size:2}
+.app-shell .published-code pre code{font:inherit}
+.app-shell .published-code .template-value{display:inline-block;padding:0 4px;border-radius:4px;font-weight:600;outline-offset:1px}
+.app-shell .published-code .template-value.is-filled{color:#72f0b5;background:#0e986038;outline:1px solid #55dda06b;box-shadow:inset 0 -1px #69e6a8}
+.app-shell .published-code .template-value.is-example{color:#ffd166;background:#c47d172b;outline:1px solid #e3a63275;box-shadow:inset 0 -1px #edb647}
+@media(max-width:760px){.published-manual-layout .published-manual-toc{position:static!important;top:auto!important;max-height:none!important;overflow:visible;order:-1}}
+
+/* Keep navigation cards distinct and bring code blocks back to the original manual style. */
+.app-shell .manual-nav{gap:16px}
+.app-shell .nav-group-sections{gap:11px}
+.app-shell .section-items{gap:8px;margin-top:7px;padding-top:5px;padding-bottom:5px}
+.app-shell .manual-list{display:grid;gap:8px}
+.app-shell .manual-link{min-height:48px}
+.app-shell .published-code{overflow:hidden;border:1px solid #34423a;border-radius:12px;background:#070d0a;box-shadow:0 8px 24px #02080655}
+.app-shell .published-code-top{min-height:38px;padding:6px 12px;border-bottom:1px solid #29352e;background:#0b1310;color:#83cbb0}
+.app-shell .published-code-top>span{font:600 10px/1.2 "IBM Plex Mono",Consolas,monospace;letter-spacing:.08em}
+.app-shell .published-code pre{overflow:auto;margin:0;padding:12px 16px;color:#d5e0d9;font:400 12px/1.65 "IBM Plex Mono","Cascadia Code",Consolas,monospace;letter-spacing:0;font-variant-ligatures:none;tab-size:2}
+.app-shell .published-code pre code{font:inherit}
+.app-shell .published-code .code-key{color:#70c8dc}
+.app-shell .published-code .code-string,.app-shell .published-code .code-command{color:#9cdb91}
+.app-shell .published-code .code-number,.app-shell .published-code .code-literal{color:#e7c66a}
+.app-shell .published-code .code-punctuation{color:#afc2b5}
+.app-shell .published-code .code-comment{color:#7d907f;font-style:italic}
+.app-shell .published-code .template-value{display:inline;color:#74e4a5;font-weight:600;background:#17613b35;box-shadow:inset 0 -1px #67d9958a;border-radius:3px;padding:0 2px}
+.app-shell .published-code .template-value.is-example{color:#f1c36b;background:#8e671c35;box-shadow:inset 0 -1px #e4b55799}
+.app-shell .user-data{border-color:#343a30;background:linear-gradient(125deg,#101510,#0b100d);box-shadow:0 10px 28px #02080655}
+.app-shell .user-data summary{min-height:54px}
+.app-shell .data-grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.app-shell .field input{border-color:#394139;background:#0a100d;font-family:"IBM Plex Mono",Consolas,monospace}
+.app-shell .data-summary-icon{background:#12372d;color:#70e0b2}
